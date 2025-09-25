@@ -1,0 +1,7 @@
+[project]
+name = "oba"
+version = "0.1.0"
+description = "An Obsidian powered agent"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
