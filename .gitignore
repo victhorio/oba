@@ -6,5 +6,8 @@ dist/
 wheels/
 *.egg-info
 
+# Tool-generated files
+.ruff_cache
+
 # Virtual environments
 .venv
