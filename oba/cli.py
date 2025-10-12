@@ -50,7 +50,7 @@ async def repl() -> int:
 
     print(f"\n{_ANSI_BOLD}Session summary:{_ANSI_RESET}")
     print(f"\tInput tokens: {usage.input_tokens:,}\tOutput tokens: {usage.output_tokens:,}")
-    print(f"\tTotal cost: ${usage.total_cost:.6f}")
+    print(f"\tTotal cost: ${usage.total_cost:.3f}")
     if ttft.n:
         print(f"\tAverage time to first token: {ttft.avg:.2f}s over {ttft.n} responses")
     if duration.n:

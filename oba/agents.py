@@ -1,4 +1,5 @@
 import warnings
+from datetime import date
 
 from agno.agent import Agent
 from agno.db.in_memory import InMemoryDb
@@ -7,7 +8,7 @@ from agno.models.openai import OpenAIResponses
 from agno.run.agent import RunOutput
 from pydantic import BaseModel
 
-from oba import prompts
+from oba import prompts, vault
 from oba.configs import Config
 
 
@@ -55,10 +56,17 @@ class Response(BaseModel):
     metrics: Metrics
 
 
-def new(settings: Config) -> Agent:
+def new(config: Config) -> Agent:
+    recent_dailies = vault.get_recent_dailies(config.vault_path)
+    system_prompt = prompts.load(
+        prompt_name="system_prompt",
+        user=config.name,
+        daily_notes=vault.format_notes(recent_dailies),
+        today=date.today().isoformat(),
+    )
     model = OpenAIResponses(
-        id=settings.model_id,
-        system_prompt=prompts.load("system_prompt"),
+        id=config.model_id,
+        system_prompt=system_prompt,
         reasoning_effort="minimal",
     )
 
@@ -68,7 +76,7 @@ def new(settings: Config) -> Agent:
         markdown=False,
         db=InMemoryDb(),
         add_history_to_context=True,
-        num_history_runs=settings.max_history_turns,
+        num_history_runs=config.max_conversation_turns,
     )
 
 

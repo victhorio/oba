@@ -4,7 +4,7 @@ from json import JSONDecodeError
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 _CONFIG_PATH = Path.home() / ".config" / "oba" / "settings.json"
 T = TypeVar("T")
@@ -15,8 +15,18 @@ class Config(BaseModel):
     #       they're not included in the settings. Source:
     #       https://platform.openai.com/docs/guides/latest-model#gpt-5-parameter-compatibility
 
+    name: str
     model_id: str = "gpt-5-mini"
-    max_history_turns: int = Field(default=20, ge=1)
+    max_conversation_turns: int = Field(default=20, ge=1)
+    vault_path: str
+
+    @field_validator("vault_path", mode="after")
+    @classmethod
+    def is_valid_dir(cls, path_str: str) -> str:
+        path = Path(path_str)
+        if not path.is_dir():
+            raise ValueError("vault_path is not a valid directory")
+        return path_str
 
 
 @lru_cache
@@ -41,14 +51,37 @@ def _read_settings(path: Path) -> Config:
 
 
 def _interactive_setup() -> Config:
-    defaults = Config()
-    print("Let's set up OBA. Press Enter to accept the default value.")
+    default_model_id = Config.model_fields["model_id"].default
+    default_max_turns = Config.model_fields["max_conversation_turns"].default
 
-    model_id = _prompt_with_default("Model ID", defaults.model_id)
+    print("Let's set up OBA. Press Enter to accept defaults where available.")
+
+    name = _prompt_required("Name")
+    model_id = _prompt_with_default("Model ID", default_model_id)
     max_history_turns = _prompt_with_default(
-        "Maximum history turns", defaults.max_history_turns, parser_fn=int
+        "Max Conversation Turns", default_max_turns, parser_fn=int
     )
-    return Config(model_id=model_id, max_history_turns=max_history_turns)
+    vault_path = _prompt_required("Path to the Vault")
+
+    try:
+        return Config(
+            name=name,
+            model_id=model_id,
+            max_conversation_turns=max_history_turns,
+            vault_path=vault_path,
+        )
+    except ValueError as e:
+        # note that a ValidationError is also an instance of ValueError
+        print(f"Failed to set these values: {e}")
+        return _interactive_setup()
+
+
+def _prompt_required(label: str) -> str:
+    response = input(f"{label}: ").strip()
+    if not response:
+        print("This value is required.")
+        return _prompt_required(label)
+    return response
 
 
 def _prompt_with_default(label: str, default: T, parser_fn: Callable[[str], T] = lambda x: x) -> T:
