@@ -37,8 +37,8 @@ class Usage(BaseModel):
             return 0.0
 
         costs = _MODEL_COSTS[model]
-        input_cost = (agno_metrics.input_tokens / 1000) * costs["input"]
-        output_cost = (agno_metrics.output_tokens / 1000) * costs["output"]
+        input_cost = (agno_metrics.input_tokens / 1e6) * costs["input"]
+        output_cost = (agno_metrics.output_tokens / 1e6) * costs["output"]
         return input_cost + output_cost
 
 
