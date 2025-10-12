@@ -51,9 +51,7 @@ def _interactive_setup() -> Config:
     return Config(model_id=model_id, max_history_turns=max_history_turns)
 
 
-def _prompt_with_default(
-    label: str, default: T, parser_fn: Callable[[str], T] = lambda x: x
-) -> T:
+def _prompt_with_default(label: str, default: T, parser_fn: Callable[[str], T] = lambda x: x) -> T:
     prompt_text = f"{label} [{default}]: "
 
     response = input(prompt_text).strip()

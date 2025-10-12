@@ -31,9 +31,7 @@ class Usage(BaseModel):
     @staticmethod
     def _calculate_cost(agno_metrics: AgnoMetrics, model: str) -> float:
         if model not in _MODEL_COSTS:
-            warnings.warn(
-                f"Unknown model '{model}' for cost calculation, defaulting to 0.0"
-            )
+            warnings.warn(f"Unknown model '{model}' for cost calculation, defaulting to 0.0")
             return 0.0
 
         costs = _MODEL_COSTS[model]

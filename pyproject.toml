@@ -16,3 +16,6 @@ oba = "oba.cli:main"
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
