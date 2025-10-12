@@ -94,5 +94,7 @@ async def send_message(agent: Agent, message: str) -> Response:
 
 
 _MODEL_COSTS = {
-    "gpt-5-mini": {"input": 0.250, "output": 2.000},
+    "gpt-5-nano": {"input": 0.05, "output": 0.4},
+    "gpt-5-mini": {"input": 0.25, "output": 2.0},
+    "gpt-5": {"input": 1.25, "output": 10.0},
 }

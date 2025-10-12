@@ -23,6 +23,7 @@ def main() -> int:
 async def repl() -> int:
     config = configs.load()
     agent = agents.new(config)
+    print(f"{_ANSI_GREY}Using model: {config.model_id}\n{_ANSI_RESET}")
 
     usage = agents.Usage()
     ttft = RollingAverage()
@@ -47,7 +48,7 @@ async def repl() -> int:
         ttft = ttft.update(response.metrics.ttft)
         duration = duration.update(response.metrics.duration)
 
-    print("Session summary:")
+    print(f"\n{_ANSI_BOLD}Session summary:{_ANSI_RESET}")
     print(
         f"\tInput tokens: {usage.input_tokens:,}\tOutput tokens: {usage.output_tokens:,}"
     )
@@ -68,5 +69,6 @@ def _update_usage(total: agents.Usage, new: agents.Usage) -> None:
     total.total_cost += new.total_cost
 
 
+_ANSI_GREY = "\033[90m"
 _ANSI_BOLD = "\033[1m"
 _ANSI_RESET = "\033[0m"
