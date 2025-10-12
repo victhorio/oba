@@ -12,11 +12,11 @@ from oba.configs import Config
 
 
 class Usage(BaseModel):
-    input_tokens: int
-    output_tokens: int
-    reasoning_tokens: int
-    total_tokens: int
-    total_cost: float
+    input_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_tokens: int = 0
+    total_tokens: int = 0
+    total_cost: float = 0.0
 
     @classmethod
     def from_agno(cls, agno_metrics: AgnoMetrics, model: str) -> "Usage":
