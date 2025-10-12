@@ -6,6 +6,8 @@ from functools import lru_cache
 
 from pydantic import BaseModel, Field
 
+from oba import prompts
+
 
 class Settings(BaseModel):
     """Runtime configuration loaded from environment variables."""
@@ -23,11 +25,10 @@ class Settings(BaseModel):
 def load() -> Settings:
     """Load and cache Settings."""
 
-    # TODO: read system prompt from a file
     # TODO: read other settings from a ~/.config/oba/settings.json file
 
     return Settings(
         model_id="gpt-5-mini",
         max_history_turns=20,
-        system_prompt="You are a helpful assistant. Your output is printed to a terminal, so don't use Markdown/prefer unicode characters for formatting.",
+        system_prompt=prompts.load("system_prompt"),
     )
