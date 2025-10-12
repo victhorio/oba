@@ -8,7 +8,7 @@ from agno.run.agent import RunOutput
 from pydantic import BaseModel
 
 from oba import prompts
-from oba.settings import Settings
+from oba.configs import Config
 
 
 class Usage(BaseModel):
@@ -57,7 +57,7 @@ class Response(BaseModel):
     metrics: Metrics
 
 
-def new(settings: Settings) -> Agent:
+def new(settings: Config) -> Agent:
     model = OpenAIResponses(
         id=settings.model_id,
         system_prompt=prompts.load("system_prompt"),

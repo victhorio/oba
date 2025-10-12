@@ -1,7 +1,6 @@
 import asyncio
 
-import oba.agent
-import oba.settings
+from oba import agents, configs
 
 
 def main() -> int:
@@ -9,8 +8,8 @@ def main() -> int:
 
 
 async def repl() -> int:
-    settings = oba.settings.load()
-    agent = oba.agent.new(settings)
+    config = configs.load()
+    agent = agents.new(config)
 
     while True:
         try:
@@ -23,7 +22,7 @@ async def repl() -> int:
         if query == "exit":
             break
 
-        response = await oba.agent.send_message(agent, query)
+        response = await agents.send_message(agent, query)
         print(response.content, end="\n\n")
 
     return 0
