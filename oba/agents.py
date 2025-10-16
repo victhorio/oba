@@ -83,7 +83,7 @@ def new(config: Config) -> Agent:
 async def send_message(agent: Agent, message: str) -> Response:
     assert agent.model is not None, "Agent model is not set"
 
-    run_output: RunOutput = await agent.arun(input=message)  # type: ignore
+    run_output: RunOutput = await agent.arun(input=message)  # pyright: ignore[reportUnknownMemberType]
     if not isinstance(run_output.content, str):
         raise ValueError("RunOutput.content is not a string")
     if not run_output.metrics:
