@@ -1,8 +1,8 @@
 from textwrap import dedent
 from typing import Callable
-from pydantic import BaseModel
-from openai.types.responses import FunctionToolParam
 
+from openai.types.responses import FunctionToolParam
+from pydantic import BaseModel
 
 ToolCallable = Callable[..., str]
 

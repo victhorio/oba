@@ -1,21 +1,22 @@
 import json
 import uuid
 import warnings
-from openai.types.responses.response_input_param import FunctionCallOutput
-from pydantic import BaseModel
+from typing import Literal
+
 from openai import AsyncOpenAI, omit
 from openai.types.responses import (
-    ResponseOutputText,
-    ResponseUsage,
-    FunctionToolParam,
     EasyInputMessageParam,
-    ResponseOutputMessage,
+    FunctionToolParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
-    ResponseOutputRefusal,
     ResponseInputItemParam,
+    ResponseOutputMessage,
+    ResponseOutputRefusal,
+    ResponseOutputText,
+    ResponseUsage,
 )
-from typing import Literal
+from openai.types.responses.response_input_param import FunctionCallOutput
+from pydantic import BaseModel
 
 from oba.ag.history import HistoryDb
 from oba.ag.tool import Tool, ToolCallable
