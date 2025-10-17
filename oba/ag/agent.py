@@ -46,6 +46,7 @@ class Agent:
         history_db: HistoryDb | None = None,
         tools: list[Tool] | None = None,
         client: AsyncOpenAI | None = None,
+        system_prompt: str | None = None,
     ):
         if history_db:
             raise NotImplementedError("history_db is not implemented yet")
@@ -53,6 +54,9 @@ class Agent:
         self.model_id: str = model_id
         self.history_db: HistoryDb | None = history_db
         self.client: AsyncOpenAI = client or AsyncOpenAI()
+        self.system_prompt: EasyInputMessageParam | None = (
+            self._to_message(system_prompt, role="system") if system_prompt else None
+        )
 
         # we save tools by name
         if tools:
@@ -79,6 +83,8 @@ class Agent:
 
         # todo: when implementing historydb, we need to prepend the history here
         messages: list[ResponseInputItemParam] = [self._to_message(input)]
+        if self.system_prompt:
+            messages = [self.system_prompt, *messages]
 
         usage = Usage()
         text_response = ""
@@ -165,10 +171,10 @@ class Agent:
         )
 
     @staticmethod
-    def _to_message(input: str) -> EasyInputMessageParam:
+    def _to_message(input: str, role: Literal["system", "user"] = "user") -> EasyInputMessageParam:
         return EasyInputMessageParam(
             type="message",
-            role="user",
+            role=role,
             content=input,
         )
 
