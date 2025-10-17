@@ -18,21 +18,9 @@ from openai.types.responses import (
 from openai.types.responses.response_input_param import FunctionCallOutput
 from pydantic import BaseModel
 
+from oba.ag.common import Usage
 from oba.ag.history import HistoryDb
 from oba.ag.tool import Tool, ToolCallable
-
-
-class Usage(BaseModel):
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_cost: float = 0.0
-
-    def acc(self, other: "Usage") -> "Usage":
-        return Usage(
-            input_tokens=self.input_tokens + other.input_tokens,
-            output_tokens=self.output_tokens + other.output_tokens,
-            total_cost=self.total_cost + other.total_cost,
-        )
 
 
 class Response(BaseModel):
@@ -88,7 +76,7 @@ class Agent:
         if self.system_prompt:
             messages_prefix.append(self.system_prompt)
         if self.history_db:
-            messages_prefix.extend(self.history_db.get_history(session_id_))
+            messages_prefix.extend(self.history_db.get_messages(session_id_))
 
         messages_new: list[ResponseInputItemParam] = [self._to_message(input, role="user")]
 
@@ -153,7 +141,11 @@ class Agent:
             messages_new.extend(tool_results)
 
         if self.history_db:
-            self.history_db.extend_history(session_id_, messages_new)
+            self.history_db.extend(
+                session_id=session_id_,
+                messages=messages_new,
+                usage=usage,
+            )
 
         return Response(
             session_id=session_id_,
