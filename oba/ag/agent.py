@@ -1,4 +1,5 @@
 import json
+import uuid
 import warnings
 from openai.types.responses.response_input_param import FunctionCallOutput
 from pydantic import BaseModel
@@ -34,6 +35,7 @@ class Usage(BaseModel):
 
 
 class Response(BaseModel):
+    session_id: str
     model_id: str
     usage: Usage
     content: str
@@ -48,9 +50,6 @@ class Agent:
         client: AsyncOpenAI | None = None,
         system_prompt: str | None = None,
     ):
-        if history_db:
-            raise NotImplementedError("history_db is not implemented yet")
-
         self.model_id: str = model_id
         self.history_db: HistoryDb | None = history_db
         self.client: AsyncOpenAI = client or AsyncOpenAI()
@@ -77,23 +76,29 @@ class Agent:
         timeout_api: float = 30.0,
         tool_calls_safe: bool = True,
         tool_calls_max_turns: int = 3,
+        tool_calls_included_in_content: bool = True,
+        session_id: str | None = None,
     ) -> Response:
         model_id_ = model_id or self.model_id
         reasoning_effort_ = reasoning_effort or "minimal"
+        session_id_ = session_id or str(uuid.uuid4())
 
-        # todo: when implementing historydb, we need to prepend the history here
-        messages: list[ResponseInputItemParam] = [self._to_message(input)]
+        messages_prefix: list[ResponseInputItemParam] = []
         if self.system_prompt:
-            messages = [self.system_prompt, *messages]
+            messages_prefix.append(self.system_prompt)
+        if self.history_db:
+            messages_prefix.extend(self.history_db.get_history(session_id_))
+
+        messages_new: list[ResponseInputItemParam] = [self._to_message(input, role="user")]
 
         usage = Usage()
-        text_response = ""
+        full_text_response: list[str] = list()
 
         for turn in range(tool_calls_max_turns):
             is_last_turn = turn == tool_calls_max_turns - 1
             tool_choice = "auto" if not is_last_turn else "none"
             response = await self.client.responses.create(
-                input=messages,
+                input=messages_prefix + messages_new,
                 model=model_id_,
                 reasoning={"effort": reasoning_effort_},
                 tools=self.tool_specs or omit,
@@ -119,16 +124,22 @@ class Agent:
             for item in response.output:
                 if isinstance(item, ResponseFunctionToolCall):
                     tool_calls.append(item)
+                    if tool_calls_included_in_content:
+                        full_text_response.append(f"[Tool call: {item.name}]")
                 elif isinstance(item, ResponseOutputMessage):
+                    item_text: list[str] = []
                     for content in item.content:
                         if isinstance(content, ResponseOutputText):
-                            text_response += content.text
+                            item_text.append(content.text)
                         elif isinstance(content, ResponseOutputRefusal):  # pyright: ignore[reportUnnecessaryIsInstance]
-                            text_response += f"\n[Refusal: {content.refusal}]\n"
+                            item_text.append(f"\n[Refusal: {content.refusal}]\n")
                         else:
                             raise AssertionError(
                                 f"Content should be either text or refusal, got {type(content)}"
                             )
+                    item_text_str = "".join(item_text)
+                    full_text_response.append(item_text_str)
+                    messages_new.append(self._to_message(item_text_str, role="assistant"))
 
             if not tool_calls:
                 break
@@ -137,13 +148,17 @@ class Agent:
             # let's be nice and actually convert the output to an input type here
             tool_call_params = [ResponseFunctionToolCallParam(tc) for tc in tool_calls]  # pyright: ignore[reportArgumentType]
 
-            messages.extend(tool_call_params)
-            messages.extend(tool_results)
+            messages_new.extend(tool_call_params)
+            messages_new.extend(tool_results)
+
+        if self.history_db:
+            self.history_db.extend_history(session_id_, messages_new)
 
         return Response(
+            session_id=session_id_,
             model_id=model_id_,
             usage=usage,
-            content=text_response,
+            content="\n\n".join(full_text_response),
         )
 
     def tool_call(
@@ -171,7 +186,10 @@ class Agent:
         )
 
     @staticmethod
-    def _to_message(input: str, role: Literal["system", "user"] = "user") -> EasyInputMessageParam:
+    def _to_message(
+        input: str,
+        role: Literal["system", "user", "assistant"] = "user",
+    ) -> EasyInputMessageParam:
         return EasyInputMessageParam(
             type="message",
             role=role,
