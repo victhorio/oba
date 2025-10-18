@@ -1,6 +1,9 @@
 run:
 	@uv run oba
 
-check-and-fmt:
-	ruff format .
-	ruff check --fix .
+fmt:
+	@uv run ruff format .
+	@uv run ruff check --fix .
+
+test:
+	@uv run pytest
