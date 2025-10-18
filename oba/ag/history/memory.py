@@ -1,37 +1,30 @@
 from collections.abc import Sequence
+from typing import override
 
 from openai.types.responses import ResponseInputItemParam
-from pydantic import BaseModel
 
 from oba.ag.common import Usage
+from oba.ag.history.base import HistoryDb, SessionInfo
 
 
-class SessionInfo(BaseModel):
-    messages: list[ResponseInputItemParam]
-    usage: Usage
-
-
-class HistoryDb:
-    """
-    A poc implementation, this should become an abstract base class and
-    there should be different implementations, namely in-memory and sqlite.
-    For now a very simple, non-configurable in-memory "db".
-    """
-
+class InMemoryDb(HistoryDb):
     def __init__(self):
         # for each session_id we'll have a list of messages to be sent to the model
         self._db: dict[str, SessionInfo] = dict()
 
+    @override
     def get_messages(self, session_id: str) -> Sequence[ResponseInputItemParam]:
         if session_id not in self._db:
             return list()
         return self._db[session_id].messages
 
+    @override
     def get_usage(self, session_id: str) -> Usage:
         if session_id not in self._db:
             return Usage()
         return self._db[session_id].usage
 
+    @override
     def extend(
         self,
         session_id: str,

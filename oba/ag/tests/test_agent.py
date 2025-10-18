@@ -7,7 +7,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from oba.ag.agent import Agent, Response
-from oba.ag.history import HistoryDb
+from oba.ag.history import InMemoryDb
 from oba.ag.tool import tool
 
 from .mock_openai import MockAsyncOpenAI
@@ -133,7 +133,7 @@ async def test_conversation_history_and_system_prompts(oai_client: MockAsyncOpen
         oai_client.response_text("Of course! You're welcome!"),
     )
 
-    db = HistoryDb()
+    db = InMemoryDb()
     agent = Agent(
         model_id="gpt-5-mini",
         client=oai_client,
