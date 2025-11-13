@@ -31,6 +31,12 @@ def get_weather(location: str, unit: str = "C") -> str:
     return f"32°{unit} in {location}"
 
 
+def test_tool_docstring_gets_dedented(oai_client: MockAsyncOpenAI):
+    t = tool(GetWeather, get_weather)
+    oai_spec = t.to_oai()
+    assert oai_spec.get("description", "").startswith("Returns")  # pyright: ignore[reportOptionalMemberAccess]
+
+
 @pytest.mark.asyncio
 async def test_simple_messaging(oai_client: MockAsyncOpenAI):
     oai_client.set_responses(
