@@ -18,8 +18,6 @@ from oba.ag.models.types import (
 from oba.ag.tool import Tool
 
 
-# TODO: look into include: reasoning.encrypted_content
-# TODO: look into include: message.output_text.logprobs
 async def generate(
     client: AsyncClient,
     messages: list[MessageTypes],
@@ -125,6 +123,7 @@ def _parse_input(msg: MessageTypes) -> dict[str, object]:
         return {
             "type": "reasoning",
             "encrypted_content": msg.encrypted_content,
+            "summary": list(),
         }
 
     if isinstance(msg, ToolCall):

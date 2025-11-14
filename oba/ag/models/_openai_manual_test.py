@@ -14,6 +14,7 @@ async def main() -> float:
     async with httpx.AsyncClient() as c:
         costs = await asyncio.gather(
             test_regular_message(c),
+            test_message_history(c),
             test_structured_output_strings(c),
             test_structured_output_complex(c),
         )
@@ -35,6 +36,39 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     response = await generate(c, messages=messages, model="gpt-5-nano", reasoning_effort="minimal")
     show_result(response, "simple message")
     return response.total_cost
+
+
+async def test_message_history(c: httpx.AsyncClient) -> float:
+    messages: list[MessageTypes] = [
+        Message(
+            role="user",
+            content="Hey! My name is Victhor, what's your name?",
+        )
+    ]
+
+    response_a = await generate(
+        c,
+        messages=messages,
+        model="gpt-5-mini",
+        reasoning_effort="medium",
+    )
+    show_result(response_a, "message history: first turn")
+
+    messages.extend(response_a.messages)
+    messages.append(
+        Message(
+            role="user",
+            content="Hey, can you remind me what's my name again?",
+        )
+    )
+    response_b = await generate(
+        c,
+        messages=messages,
+        model="gpt-5-mini",
+        reasoning_effort="minimal",
+    )
+    show_result(response_b, "message history: second turn")
+    return response_a.total_cost + response_b.total_cost
 
 
 async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
