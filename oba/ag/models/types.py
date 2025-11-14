@@ -1,8 +1,7 @@
 import json
 from typing import Generic, Literal, TypeVar
 
-from attr import field
-from attrs import define
+from attrs import define, field
 from pydantic import BaseModel
 
 Role = Literal["system", "user", "assistant"]
@@ -14,14 +13,10 @@ ModelID = Literal[
     "gpt-5.1",
 ]
 
-# Model ID -> (Input cost, Ccahed input cost, Output cost) per 1M tokens
-_MODEL_COSTS: dict[ModelID, tuple[float, float, float]] = {
-    "gpt-4.1": (2.00, 0.50, 8.00),
-    "gpt-5-nano": (0.05, 0.005, 0.40),
-    "gpt-5-mini": (0.25, 0.025, 2.00),
-    "gpt-5": (1.25, 0.125, 10.00),
-    "gpt-5.1": (1.25, 0.125, 10.00),
-}
+
+@define(slots=True)
+class Reasoning:
+    encrypted_content: str
 
 
 @define(slots=True)
@@ -80,7 +75,7 @@ class Response(Generic[StructuredModelT]):
     content: str
     tool_calls: list[ToolCall]
     structured_output: StructuredModelT | None
-    raw_output: list[dict[str, object]]
+    reasoning: Reasoning | None
 
     @property
     def message(self) -> Message:
@@ -90,5 +85,31 @@ class Response(Generic[StructuredModelT]):
     def total_cost(self) -> float:
         return self.usage.total_cost(self.model)
 
+    @property
+    def messages(self) -> list["MessageTypes"]:
+        """
+        Returns all messages from this response as valid ag types.
+        The message history can be extended with the returned list.
+        """
 
-MessageTypes = Message | ToolCall | Response
+        res: list["MessageTypes"] = list()
+        if self.reasoning:
+            res.append(self.reasoning)
+        if self.content:
+            res.append(self.message)
+        if self.tool_calls:
+            res.extend(self.tool_calls)
+        return res
+
+
+MessageTypes = Message | Reasoning | ToolCall | ToolResult
+
+
+# Model ID -> (Input cost, Ccahed input cost, Output cost) per 1M tokens
+_MODEL_COSTS: dict[ModelID, tuple[float, float, float]] = {
+    "gpt-4.1": (2.00, 0.50, 8.00),
+    "gpt-5-nano": (0.05, 0.005, 0.40),
+    "gpt-5-mini": (0.25, 0.025, 2.00),
+    "gpt-5": (1.25, 0.125, 10.00),
+    "gpt-5.1": (1.25, 0.125, 10.00),
+}

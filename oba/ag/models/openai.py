@@ -8,6 +8,7 @@ from oba.ag.models.types import (
     Message,
     MessageTypes,
     ModelID,
+    Reasoning,
     Response,
     StructuredModelT,
     ToolCall,
@@ -35,7 +36,7 @@ async def generate(
     api_key = os.getenv("OPENAI_API_KEY")
 
     payload = {
-        "input": _parse_input(messages),
+        "input": [_parse_input(m) for m in messages],
         "model": model,
         "store": False,
         "include": [
@@ -110,35 +111,39 @@ def _parse_tool(tool: Tool) -> dict[str, object]:
     }
 
 
-def _parse_input(
-    messages: list[MessageTypes],
-) -> list[dict[str, object]]:
-    # TODO: some caching at the entry level not to reparse everytime?
+def _parse_input(msg: MessageTypes) -> dict[str, object]:
+    # TODO: some caching not to reparse same items everytime?
 
-    res: list[dict[str, object]] = list()
-    for m in messages:
-        if isinstance(m, Message):
-            res.append(
-                {
-                    "role": m.role,
-                    "content": m.content,
-                    "type": "message",
-                }
-            )
-        elif isinstance(m, Response):
-            res.extend(m.raw_output)
-        elif isinstance(m, ToolResult):
-            res.append(
-                {
-                    "type": "function_call_output",
-                    "call_id": m.call_id,
-                    "output": m.result,
-                }
-            )
-        else:
-            raise ValueError(f"received invalid message type {type(m).__name__}")
+    if isinstance(msg, Message):
+        return {
+            "type": "message",
+            "role": msg.role,
+            "content": msg.content,
+        }
 
-    return res
+    if isinstance(msg, Reasoning):
+        return {
+            "type": "reasoning",
+            "encrypted_content": msg.encrypted_content,
+        }
+
+    if isinstance(msg, ToolCall):
+        return {
+            "type": "function_call",
+            "call_id": msg.call_id,
+            "name": msg.name,
+            "arguments": msg.args,
+        }
+
+    if isinstance(msg, ToolResult):
+        return {
+            "type": "function_call_output",
+            "call_id": msg.call_id,
+            "output": msg.result,
+        }
+
+    # note: lsp should report unreachable code below, greyed out
+    raise ValueError(f"received invalid message type: {type(msg)}")
 
 
 def _parse_response(
@@ -159,14 +164,15 @@ def _parse_response(
         output_tokens_reasoning=usage_raw["output_tokens_details"]["reasoning_tokens"],
     )
 
-    out_parts: list[str] = list()
+    out_content_parts: list[str] = list()
     out_tool_calls: list[ToolCall] = list()
+    out_reasoning: list[Reasoning] = list()
     for out_item in r["output"]:
         if out_item["type"] == "message":
             for out_content in out_item["content"]:
                 if "text" in out_content:
                     out_part = out_content["text"]
-                    out_parts.append(out_part)
+                    out_content_parts.append(out_part)
         elif out_item["type"] == "function_call":
             tc = ToolCall(
                 call_id=out_item["call_id"],
@@ -174,10 +180,17 @@ def _parse_response(
                 args=out_item["arguments"],
             )
             out_tool_calls.append(tc)
+        elif out_item["type"] == "reasoning":
+            reasoning = Reasoning(encrypted_content=out_item["encrypted_content"])
+            out_reasoning.append(reasoning)
 
-    out_content = "\n".join(out_parts)
-
+    out_content = "\n".join(out_content_parts)
     out_parsed = structure.model_validate_json(out_content) if structure else None
+
+    if len(out_reasoning) > 1:
+        raise AssertionError(
+            "a single call returned multiple reasoning blocks, let's adapt the Response type"
+        )
 
     return Response(
         model=model,
@@ -186,5 +199,5 @@ def _parse_response(
         content=out_content,
         tool_calls=out_tool_calls,
         structured_output=out_parsed,
-        raw_output=r["output"],
+        reasoning=out_reasoning[0] if out_reasoning else None,
     )
