@@ -11,7 +11,7 @@ from oba.ag.models.types import Message, ModelID, Response, StructuredModelT, Us
 # TODO: look into include: message.output_text.logprobs
 async def generate(
     client: AsyncClient,
-    input: list[Message],
+    messages: list[Message],
     model: ModelID,
     max_output_tokens: int | None = None,
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None,
@@ -25,7 +25,7 @@ async def generate(
     api_key = os.getenv("OPENAI_API_KEY")
 
     payload = {
-        "input": [{"role": m.role, "content": m.content, "type": "message"} for m in input],
+        "input": [{"role": m.role, "content": m.content, "type": "message"} for m in messages],
         "model": model,
         "store": False,
     }

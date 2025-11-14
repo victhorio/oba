@@ -31,7 +31,7 @@ async def test_regular_message(c: httpx.AsyncClient):
         ),
     ]
 
-    response = await generate(c, input=messages, model="gpt-5-nano", reasoning_effort="minimal")
+    response = await generate(c, messages=messages, model="gpt-5-nano", reasoning_effort="minimal")
     show_result(response, "simple message")
 
 
@@ -49,7 +49,7 @@ async def test_structured_output_strings(c: httpx.AsyncClient):
 
     response = await generate(
         c,
-        input=messages,
+        messages=messages,
         model="gpt-5-mini",
         reasoning_effort="minimal",
         structured_output=CountryPick,
@@ -114,7 +114,7 @@ async def test_structured_output_complex(c: httpx.AsyncClient):
 
     response = await generate(
         c,
-        input=messages,
+        messages=messages,
         model="gpt-5.1",
         reasoning_effort="low",
         structured_output=NPCBrainstorm,
