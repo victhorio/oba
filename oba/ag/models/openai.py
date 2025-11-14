@@ -4,19 +4,29 @@ from typing import Any, Literal
 from httpx import AsyncClient
 from pydantic import BaseModel
 
-from oba.ag.models.types import Message, ModelID, Response, StructuredModelT, Usage
+from oba.ag.models.types import (
+    Message,
+    MessageTypes,
+    ModelID,
+    Response,
+    StructuredModelT,
+    ToolCall,
+    ToolResult,
+    Usage,
+)
+from oba.ag.tool import Tool
 
 
 # TODO: look into include: reasoning.encrypted_content
 # TODO: look into include: message.output_text.logprobs
 async def generate(
     client: AsyncClient,
-    messages: list[Message],
+    messages: list[MessageTypes],
     model: ModelID,
     max_output_tokens: int | None = None,
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None,
     structured_output: type[StructuredModelT] | None = None,
-    tools: list[type[BaseModel]] | None = None,
+    tools: list[Tool] | None = None,
     tool_choice: Literal["none", "auto", "required"] | None = None,
     parallel_tool_calls: bool = False,
     timeout=20,
@@ -25,9 +35,12 @@ async def generate(
     api_key = os.getenv("OPENAI_API_KEY")
 
     payload = {
-        "input": [{"role": m.role, "content": m.content, "type": "message"} for m in messages],
+        "input": _parse_input(messages),
         "model": model,
         "store": False,
+        "include": [
+            "reasoning.encrypted_content",
+        ],
     }
 
     if max_output_tokens:
@@ -40,12 +53,22 @@ async def generate(
                 "type": "json_schema",
                 "name": structured_output.__name__,
                 "strict": True,
-                "schema": structured_output.model_json_schema() | {"additionalProperties": False},
+                "schema": structured_output.model_json_schema(),
             }
         }
 
-    if tools or tool_choice or parallel_tool_calls:
-        raise NotImplementedError("tool calling")
+    if tools:
+        payload["tools"] = [_parse_tool(tool) for tool in tools]
+        payload["parallel_tool_calls"] = parallel_tool_calls
+        if tool_choice:
+            payload["tool_choice"] = tool_choice
+
+    if debug:
+        import pprint
+
+        print("--- Sent payload to OpenAI ---")
+        pprint.pprint(payload, width=110)
+        print("------------------------------")
 
     response = await client.post(
         "https://api.openai.com/v1/responses",
@@ -61,12 +84,61 @@ async def generate(
         import pprint
 
         print("--- Returned payload from OpenAI ---")
-        pprint.pprint(response.json())
+        pprint.pprint(response.json(), width=110)
         print("------------------------------------")
 
     response.raise_for_status()
 
     return _parse_response(response.json(), model=model, structure=structured_output)
+
+
+def _parse_tool(tool: Tool) -> dict[str, object]:
+    # TODO: let's have some caching not to reparse it everytime?
+    spec_schema = tool.spec.model_json_schema()
+
+    return {
+        "name": spec_schema["title"],
+        "description": spec_schema["description"],
+        "parameters": {
+            "type": "object",
+            "properties": spec_schema["properties"],
+            "required": spec_schema["required"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+        "type": "function",
+    }
+
+
+def _parse_input(
+    messages: list[MessageTypes],
+) -> list[dict[str, object]]:
+    # TODO: some caching at the entry level not to reparse everytime?
+
+    res: list[dict[str, object]] = list()
+    for m in messages:
+        if isinstance(m, Message):
+            res.append(
+                {
+                    "role": m.role,
+                    "content": m.content,
+                    "type": "message",
+                }
+            )
+        elif isinstance(m, Response):
+            res.extend(m.raw_output)
+        elif isinstance(m, ToolResult):
+            res.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": m.call_id,
+                    "output": m.result,
+                }
+            )
+        else:
+            raise ValueError(f"received invalid message type {type(m).__name__}")
+
+    return res
 
 
 def _parse_response(
@@ -88,12 +160,21 @@ def _parse_response(
     )
 
     out_parts: list[str] = list()
+    out_tool_calls: list[ToolCall] = list()
     for out_item in r["output"]:
         if out_item["type"] == "message":
             for out_content in out_item["content"]:
                 if "text" in out_content:
                     out_part = out_content["text"]
                     out_parts.append(out_part)
+        elif out_item["type"] == "function_call":
+            tc = ToolCall(
+                call_id=out_item["call_id"],
+                name=out_item["name"],
+                args=out_item["arguments"],
+            )
+            out_tool_calls.append(tc)
+
     out_content = "\n".join(out_parts)
 
     out_parsed = structure.model_validate_json(out_content) if structure else None
@@ -102,6 +183,8 @@ def _parse_response(
         model=model,
         model_api=r["model"],
         usage=usage,
-        output=out_content,
+        content=out_content,
+        tool_calls=out_tool_calls,
         structured_output=out_parsed,
+        raw_output=r["output"],
     )

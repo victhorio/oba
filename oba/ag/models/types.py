@@ -1,5 +1,7 @@
+import json
 from typing import Generic, Literal, TypeVar
 
+from attr import field
 from attrs import define
 from pydantic import BaseModel
 
@@ -30,6 +32,28 @@ class Message:
 
 
 @define(slots=True)
+class ToolCall:
+    call_id: str
+    name: str
+    args: str
+    _parsed_args: dict[str, object] = field(init=False, factory=dict)
+
+    @property
+    def parsed_args(self) -> dict[str, object]:
+        if self._parsed_args:
+            return self._parsed_args
+
+        self._parsed_args = json.loads(self.args)
+        return self._parsed_args
+
+
+@define(slots=True)
+class ToolResult:
+    call_id: str
+    result: str
+
+
+@define(slots=True)
 class Usage:
     input_tokens: int
     output_tokens: int
@@ -52,13 +76,19 @@ StructuredModelT = TypeVar("StructuredModelT", bound=BaseModel)
 class Response(Generic[StructuredModelT]):
     model: ModelID
     model_api: str
-    output: str
     usage: Usage
-    structured_output: StructuredModelT | None = None
+    content: str
+    tool_calls: list[ToolCall]
+    structured_output: StructuredModelT | None
+    raw_output: list[dict[str, object]]
 
-    def as_msg(self) -> Message:
-        return Message(role="assistant", content=self.output)
+    @property
+    def message(self) -> Message:
+        return Message(role="assistant", content=self.content)
 
     @property
     def total_cost(self) -> float:
         return self.usage.total_cost(self.model)
+
+
+MessageTypes = Message | ToolCall | Response

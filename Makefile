@@ -6,4 +6,5 @@ fmt:
 	@uv run ruff check --fix .
 
 test:
+	@uv run ruff check .
 	@uv run pytest
