@@ -1,13 +1,15 @@
 import asyncio
 import pprint
 from enum import StrEnum, auto
+from typing import Literal
 
 import httpx
 from attrs import asdict
 from pydantic import BaseModel, ConfigDict, Field
 
+from oba.ag import tool
 from oba.ag.models.openai import generate
-from oba.ag.models.types import Message, MessageTypes, Response, StructuredModelT
+from oba.ag.models.types import Message, MessageTypes, Response, StructuredModelT, ToolResult
 
 
 async def main() -> float:
@@ -17,6 +19,7 @@ async def main() -> float:
             test_message_history(c),
             test_structured_output_strings(c),
             test_structured_output_complex(c),
+            test_tool_calling(c),
         )
         return sum(costs)
 
@@ -34,7 +37,7 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     ]
 
     response = await generate(c, messages=messages, model="gpt-5-nano", reasoning_effort="minimal")
-    show_result(response, "simple message")
+    _show_result(response, "simple message")
     return response.total_cost
 
 
@@ -52,7 +55,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         model="gpt-5-mini",
         reasoning_effort="medium",
     )
-    show_result(response_a, "message history: first turn")
+    _show_result(response_a, "message history: first turn")
 
     messages.extend(response_a.messages)
     messages.append(
@@ -67,7 +70,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         model="gpt-5-mini",
         reasoning_effort="minimal",
     )
-    show_result(response_b, "message history: second turn")
+    _show_result(response_b, "message history: second turn")
     return response_a.total_cost + response_b.total_cost
 
 
@@ -91,7 +94,7 @@ async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
         reasoning_effort="minimal",
         structured_output=CountryPick,
     )
-    show_result(response, "structured output: strings")
+    _show_result(response, "structured output: strings")
 
     # testing the typechecker
     country_pick: CountryPick
@@ -160,12 +163,75 @@ async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
         structured_output=NPCBrainstorm,
     )
 
-    show_result(response, "structured output: complex")
+    _show_result(response, "structured output: complex")
 
     return response.total_cost
 
 
-def show_result(response: Response[StructuredModelT], name: str) -> None:
+async def test_tool_calling(c: httpx.AsyncClient) -> float:
+    class GetWeather(BaseModel):
+        """
+        Returns the weather for the given location.
+        """
+
+        latitude: int = Field(description="The latitude of the location")
+        longitude: int = Field(description="The longitude of the location")
+        unit: Literal["C", "F"] = Field(description="The unit of temperature")
+        days_delta: int = Field(
+            description="The `delta` of days relative to today. For example: 0 means today, 1 means tomorrow.",
+            ge=-7,
+            le=7,
+        )
+
+    class SearchWikipedia(BaseModel):
+        """
+        Searches a query in Wikipedia, returning a list of links to relevant articles.
+        """
+
+        query: str = Field(description="The query to use in the search")
+
+    tool_deck = [
+        tool(GetWeather, lambda x: ""),
+        tool(SearchWikipedia, lambda x: ""),
+    ]
+
+    total_cost = 0.0
+    m: list[MessageTypes] = [
+        Message(
+            role="user",
+            content="Qual a temperatura aqui no rio de janeiro hoje?",
+        )
+    ]
+
+    response = await generate(
+        c,
+        messages=m,
+        model="gpt-5-mini",
+        tools=tool_deck,
+    )
+    total_cost += response.total_cost
+    _show_result(response, "tool calling: tool call")
+
+    assert response.tool_calls
+    assert response.tool_calls[0].name == "GetWeather"
+
+    tr = ToolResult(call_id=response.tool_calls[0].call_id, result="32")
+    m.extend(response.messages)
+    m.append(tr)
+
+    response = await generate(
+        c,
+        messages=m,
+        model="gpt-5-mini",
+        tools=tool_deck,
+    )
+    total_cost += response.total_cost
+    _show_result(response, "tool calling: tool result")
+
+    return total_cost
+
+
+def _show_result(response: Response[StructuredModelT], name: str) -> None:
     print(f"\033[33;1m--- test: {name} ---\033[0m")
     pprint.pprint(asdict(response), width=110)
 
