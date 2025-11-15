@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from attrs import define
 
 from oba.ag.common import Usage
-from oba.ag.models.types import Message
+from oba.ag.models.message import Message
 
 
 @define

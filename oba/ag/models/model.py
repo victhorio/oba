@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from pydantic import BaseModel
 
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS
-from oba.ag.models.types import Content, Message, ModelID, ToolCall, Usage
+from oba.ag.models.message import Content, Message, ModelID, ToolCall, Usage
 from oba.ag.tool import Tool
 
 ToolChoice = Literal["none", "auto", "required"]

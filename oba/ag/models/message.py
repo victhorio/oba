@@ -17,7 +17,13 @@ ModelID = Literal[
 
 
 @define(slots=True)
-class Reasoning:
+class MessageBase:
+    _cached_parse: dict[str, dict[str, object]] = field(init=False, factory=dict)
+    """Used to store different parsed versions for different models to avoid recomputation."""
+
+
+@define(slots=True)
+class Reasoning(MessageBase):
     # NOTE: We need to store reasoning blocks from OpenAI to maintain it in context,
     #       but they only accept returning encrypted reasoning contents.
     encrypted_content: str
@@ -25,14 +31,14 @@ class Reasoning:
 
 
 @define(slots=True)
-class Content:
+class Content(MessageBase):
     role: Role
     # TODO: support non text inputs as well
     text: str
 
 
 @define(slots=True)
-class ToolCall:
+class ToolCall(MessageBase):
     call_id: str
     name: str
     args: str | None = field(default=None)
@@ -46,7 +52,7 @@ class ToolCall:
 
 
 @define(slots=True)
-class ToolResult:
+class ToolResult(MessageBase):
     call_id: str
     result: str
 

@@ -5,8 +5,8 @@ from attrs import define
 
 from oba.ag.common import Usage
 from oba.ag.memory import Memory
+from oba.ag.models.message import Content, Message, ToolCall, ToolResult
 from oba.ag.models.model import Model
-from oba.ag.models.types import Content, Message, ToolCall, ToolResult
 from oba.ag.tool import Tool, ToolCallable
 
 
@@ -50,7 +50,7 @@ class Agent:
         input: str,
         *,
         model: Model | None = None,
-        timeout_api: int = 30,
+        timeout_api: int = 60,
         tool_calls_safe: bool = True,
         tool_calls_max_turns: int = 3,
         tool_calls_included_in_content: bool = True,

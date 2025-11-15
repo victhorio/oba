@@ -6,8 +6,7 @@ from httpx import AsyncClient
 from typing_extensions import Literal
 
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
-from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
-from oba.ag.models.types import (
+from oba.ag.models.message import (
     Content,
     Message,
     ModelID,
@@ -16,7 +15,10 @@ from oba.ag.models.types import (
     ToolResult,
     Usage,
 )
+from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
 from oba.ag.tool import Tool
+
+_PROVIDER_KEY = "oai"
 
 ReasoningEffort = Literal["none", "low", "medium", "high"]
 
@@ -213,46 +215,51 @@ def _parse_tool(tool: Tool) -> dict[str, object]:
 
 
 def _transform_input(msg: Message) -> dict[str, object]:
-    """
-    Transforms an ag normalized instance of MessageTypes into an OpenAI compatible payload.
-    """
-
-    # TODO: some caching not to reparse same items everytime?
+    if parsed := msg._cached_parse.get(_PROVIDER_KEY, dict()):
+        return parsed
 
     # NOTE: usually these payloads will have an `id`, and when using store=True we can
     #       actually fully rely on it (specially for reasoning), but since we want a
     #       stateless API we set store=False and therefore can discard all IDs
 
     if isinstance(msg, Content):
-        return {
+        parsed: dict[str, object] = {
             "type": "message",
             "role": msg.role,
             "content": msg.text,
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     if isinstance(msg, Reasoning):
-        return {
+        parsed = {
             "type": "reasoning",
             "encrypted_content": msg.encrypted_content,
             # NOTE: even when not using reasoning summaries, the API will still require
             #       the summary field with an empty list for validation
             "summary": list(),
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     if isinstance(msg, ToolCall):
-        return {
+        parsed = {
             "type": "function_call",
             "call_id": msg.call_id,
             "name": msg.name,
             "arguments": msg.args,
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     if isinstance(msg, ToolResult):
-        return {
+        parsed = {
             "type": "function_call_output",
             "call_id": msg.call_id,
             "output": msg.result,
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     # note: lsp should report unreachable code below, greyed out
     raise ValueError(f"received invalid message type: {type(msg)}")

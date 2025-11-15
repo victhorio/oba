@@ -5,8 +5,7 @@ from typing import Any, override
 from httpx import AsyncClient
 
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
-from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
-from oba.ag.models.types import (
+from oba.ag.models.message import (
     Content,
     Message,
     ModelID,
@@ -15,7 +14,10 @@ from oba.ag.models.types import (
     ToolResult,
     Usage,
 )
+from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
 from oba.ag.tool import Tool
+
+_PROVIDER_KEY = "ant"
 
 
 class AnthropicModel(Model):
@@ -173,18 +175,21 @@ class AnthropicModel(Model):
 
 
 def _transform_input(msg: Message) -> dict[str, object]:
-    # TODO: some caching not to reparse same items everytime?
+    if parsed := msg._cached_parse.get(_PROVIDER_KEY, dict()):
+        return parsed
 
     if isinstance(msg, Content):
         if msg.role == "system":
             raise ValueError("claude does not support mid history system messages")
-        return {
+        parsed: dict[str, object] = {
             "role": msg.role,
             "content": msg.text,
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     if isinstance(msg, Reasoning):
-        return {
+        parsed = {
             "role": "assistant",
             "content": [
                 {
@@ -194,9 +199,11 @@ def _transform_input(msg: Message) -> dict[str, object]:
                 }
             ],
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     if isinstance(msg, ToolCall):
-        return {
+        parsed = {
             "role": "assistant",
             "content": [
                 {
@@ -207,9 +214,11 @@ def _transform_input(msg: Message) -> dict[str, object]:
                 }
             ],
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     if isinstance(msg, ToolResult):
-        return {
+        parsed = {
             "role": "user",
             "content": [
                 {
@@ -219,6 +228,8 @@ def _transform_input(msg: Message) -> dict[str, object]:
                 }
             ],
         }
+        msg._cached_parse[_PROVIDER_KEY] = parsed
+        return parsed
 
     # note: lsp should report unreachable code below, greyed out
     raise ValueError(f"receive invalid message type: {type(msg)}")

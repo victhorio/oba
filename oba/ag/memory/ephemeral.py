@@ -2,7 +2,7 @@ from typing import Sequence, override
 
 from oba.ag.common import Usage
 from oba.ag.memory.base import Memory, SessionInfo
-from oba.ag.models.types import Message
+from oba.ag.models.message import Message
 
 
 class EphemeralMemory(Memory):

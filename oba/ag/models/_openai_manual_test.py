@@ -8,9 +8,9 @@ from attrs import asdict
 from pydantic import BaseModel, ConfigDict, Field
 
 from oba.ag import Tool
+from oba.ag.models.message import Content, Message, ToolResult
 from oba.ag.models.model import Response, StructuredModelT
 from oba.ag.models.openai import OpenAIModel
-from oba.ag.models.types import Content, Message, ToolResult
 
 
 async def main() -> float:

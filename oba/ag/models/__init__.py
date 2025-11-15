@@ -1,4 +1,4 @@
-from . import openai, types
+from . import message, openai
 
 
 async def run_manual_tests():

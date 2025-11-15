@@ -12,8 +12,8 @@ from oba.ag import Tool
 from oba.ag.agent import Agent, Response
 from oba.ag.memory import EphemeralMemory
 from oba.ag.models.anthropic import AnthropicModel
+from oba.ag.models.message import Message, Reasoning
 from oba.ag.models.openai import OpenAIModel
-from oba.ag.models.types import Message, Reasoning
 
 
 async def main() -> float:
