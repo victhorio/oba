@@ -1,10 +1,8 @@
-from collections.abc import Sequence
-from typing import override
-
-from openai.types.responses import ResponseInputItemParam
+from typing import Sequence, override
 
 from oba.ag.common import Usage
 from oba.ag.history.base import HistoryDb, SessionInfo
+from oba.ag.models.types import MessageTypes
 
 
 class InMemoryDb(HistoryDb):
@@ -13,7 +11,7 @@ class InMemoryDb(HistoryDb):
         self._db: dict[str, SessionInfo] = dict()
 
     @override
-    def get_messages(self, session_id: str) -> Sequence[ResponseInputItemParam]:
+    def get_messages(self, session_id: str) -> Sequence[MessageTypes]:
         if session_id not in self._db:
             return list()
         return self._db[session_id].messages
@@ -28,7 +26,7 @@ class InMemoryDb(HistoryDb):
     def extend(
         self,
         session_id: str,
-        messages: Sequence[ResponseInputItemParam],
+        messages: Sequence[MessageTypes],
         usage: Usage,
     ) -> None:
         if session_id not in self._db:

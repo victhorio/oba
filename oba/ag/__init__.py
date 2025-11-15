@@ -2,4 +2,13 @@ from oba.ag.agent import Agent
 from oba.ag.history import HistoryDb
 from oba.ag.tool import tool
 
-__all__ = ["Agent", "tool", "HistoryDb"]
+
+async def run_manual_tests():
+    from ._agent_manual_tests import main as agent_main
+
+    total_cost = 0.0
+    total_cost += await agent_main()
+    print(f"\033[33;1mTotal cost: ${total_cost:.3f}\033[0m")
+
+
+__all__ = ["Agent", "tool", "HistoryDb", "run_manual_tests"]

@@ -21,7 +21,7 @@ async def main() -> float:
             test_structured_output_complex(c),
             test_tool_calling(c),
         )
-        return sum(costs)
+    return sum(costs)
 
 
 async def test_regular_message(c: httpx.AsyncClient) -> float:
@@ -37,7 +37,7 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     ]
 
     response = await generate(c, messages=messages, model="gpt-5-nano", reasoning_effort="minimal")
-    _show_result(response, "simple message")
+    _show_response(response, "simple message")
     return response.total_cost
 
 
@@ -55,7 +55,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         model="gpt-5-mini",
         reasoning_effort="medium",
     )
-    _show_result(response_a, "message history: first turn")
+    _show_response(response_a, "message history: first turn")
 
     messages.extend(response_a.messages)
     messages.append(
@@ -70,7 +70,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         model="gpt-5-mini",
         reasoning_effort="minimal",
     )
-    _show_result(response_b, "message history: second turn")
+    _show_response(response_b, "message history: second turn")
     return response_a.total_cost + response_b.total_cost
 
 
@@ -94,7 +94,7 @@ async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
         reasoning_effort="minimal",
         structured_output=CountryPick,
     )
-    _show_result(response, "structured output: strings")
+    _show_response(response, "structured output: strings")
 
     # testing the typechecker
     country_pick: CountryPick
@@ -163,7 +163,7 @@ async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
         structured_output=NPCBrainstorm,
     )
 
-    _show_result(response, "structured output: complex")
+    _show_response(response, "structured output: complex")
 
     return response.total_cost
 
@@ -210,7 +210,7 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         tools=tool_deck,
     )
     total_cost += response.total_cost
-    _show_result(response, "tool calling: tool call")
+    _show_response(response, "tool calling: tool call")
 
     assert response.tool_calls
     assert response.tool_calls[0].name == "GetWeather"
@@ -226,16 +226,16 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         tools=tool_deck,
     )
     total_cost += response.total_cost
-    _show_result(response, "tool calling: tool result")
+    _show_response(response, "tool calling: tool result")
 
     return total_cost
 
 
-def _show_result(response: Response[StructuredModelT], name: str) -> None:
+def _show_response(response: Response[StructuredModelT], name: str) -> None:
     print(f"\033[33;1m--- test: {name} ---\033[0m")
-    pprint.pprint(asdict(response), width=110)
+    pprint.pp(asdict(response), width=110)
 
     if response.structured_output:
         print("\n\t\033[33mStructured output:\033[0m")
-        pprint.pprint(response.structured_output.model_dump(), width=110)
+        pprint.pp(response.structured_output.model_dump(), width=110)
     print("\n\n", end="")

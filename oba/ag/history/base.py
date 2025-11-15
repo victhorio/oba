@@ -1,20 +1,21 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from openai.types.responses import ResponseInputItemParam
-from pydantic import BaseModel
+from attrs import define
 
 from oba.ag.common import Usage
+from oba.ag.models.types import MessageTypes
 
 
-class SessionInfo(BaseModel):
-    messages: list[ResponseInputItemParam]
+@define
+class SessionInfo:
+    messages: list[MessageTypes]
     usage: Usage
 
 
 class HistoryDb(ABC):
     @abstractmethod
-    def get_messages(self, session_id: str) -> Sequence[ResponseInputItemParam]: ...
+    def get_messages(self, session_id: str) -> Sequence[MessageTypes]: ...
 
     @abstractmethod
     def get_usage(self, session_id: str) -> Usage: ...
@@ -23,6 +24,6 @@ class HistoryDb(ABC):
     def extend(
         self,
         session_id: str,
-        messages: Sequence[ResponseInputItemParam],
+        messages: Sequence[MessageTypes],
         usage: Usage,
     ) -> None: ...

@@ -1,25 +1,13 @@
-import json
 import uuid
-import warnings
 from typing import Literal
 
-from openai import AsyncOpenAI, omit
-from openai.types.responses import (
-    EasyInputMessageParam,
-    FunctionToolParam,
-    ResponseFunctionToolCall,
-    ResponseFunctionToolCallParam,
-    ResponseInputItemParam,
-    ResponseOutputMessage,
-    ResponseOutputRefusal,
-    ResponseOutputText,
-    ResponseUsage,
-)
-from openai.types.responses.response_input_param import FunctionCallOutput
+import httpx
 from pydantic import BaseModel
 
 from oba.ag.common import Usage
 from oba.ag.history import HistoryDb
+from oba.ag.models.openai import generate
+from oba.ag.models.types import Message, MessageTypes, ModelID, ToolCall, ToolResult
 from oba.ag.tool import Tool, ToolCallable
 
 
@@ -33,111 +21,99 @@ class Response(BaseModel):
 class Agent:
     def __init__(
         self,
-        model_id: str,
+        model_id: ModelID,
         history_db: HistoryDb | None = None,
         tools: list[Tool] | None = None,
-        client: AsyncOpenAI | None = None,
+        client: httpx.AsyncClient | None = None,
         system_prompt: str | None = None,
     ):
-        self.model_id: str = model_id
+        self.model_id: ModelID = model_id
         self.history_db: HistoryDb | None = history_db
-        self.client: AsyncOpenAI = client or AsyncOpenAI()
-        self.system_prompt: EasyInputMessageParam | None = (
-            self._to_message(system_prompt, role="system") if system_prompt else None
-        )
+        self.client: httpx.AsyncClient = client or httpx.AsyncClient()
+        self.system_prompt: Message | None = None
+        if system_prompt:
+            self.system_prompt = Message(
+                role="system",
+                content=system_prompt,
+            )
 
-        # we save tools by name
+        # TODO: change this to simply be a list[type[BaseModel]] instead
+        self.tools: list[Tool] = list()
+        self.callables: dict[str, ToolCallable] = dict()
+
         if tools:
-            self.tool_specs: list[FunctionToolParam] = [tool.to_oai() for tool in tools]
-            self.tool_callables: dict[str, ToolCallable] = {
-                tool.spec.__name__: tool.callable for tool in tools
-            }
-        else:
-            self.tool_specs = []
-            self.tool_callables = {}
+            self.tools = tools
+            self.callables = {tool.spec.__name__: tool.callable for tool in tools}
 
     async def run(
         self,
         input: str,
         *,
-        model_id: str | None = None,
+        model_id: ModelID | None = None,
         reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None,
-        timeout_api: float = 30.0,
+        timeout_api: int = 30,
         tool_calls_safe: bool = True,
         tool_calls_max_turns: int = 3,
         tool_calls_included_in_content: bool = True,
         session_id: str | None = None,
+        debug: bool = False,
     ) -> Response:
         model_id_ = model_id or self.model_id
-        reasoning_effort_ = reasoning_effort or "minimal"
+        reasoning_effort_ = reasoning_effort or "medium"
         session_id_ = session_id or str(uuid.uuid4())
 
-        messages_prefix: list[ResponseInputItemParam] = []
+        messages_prefix: list[MessageTypes] = []
         if self.system_prompt:
             messages_prefix.append(self.system_prompt)
         if self.history_db:
             messages_prefix.extend(self.history_db.get_messages(session_id_))
 
-        messages_new: list[ResponseInputItemParam] = [self._to_message(input, role="user")]
+        messages_new: list[MessageTypes] = [Message(role="user", content=input)]
 
         usage = Usage()
         full_text_response: list[str] = list()
 
-        for turn in range(tool_calls_max_turns):
+        # since we want to allow tool_calls_max_turns, we give it 1 extra turn
+        # at the end to write a response
+        for turn in range(tool_calls_max_turns + 1):
             is_last_turn = turn == tool_calls_max_turns - 1
             tool_choice = "auto" if not is_last_turn else "none"
-            response = await self.client.responses.create(
-                input=messages_prefix + messages_new,
+
+            response = await generate(
+                client=self.client,
+                messages=messages_prefix + messages_new,
                 model=model_id_,
-                reasoning={"effort": reasoning_effort_},
-                tools=self.tool_specs or omit,
-                # fail fast if sending too many tokens by mistake, truncation should
-                # be handled by ag
-                truncation="disabled",
+                reasoning_effort=reasoning_effort_,
+                tools=self.tools,
                 timeout=timeout_api,
-                store=False,
                 tool_choice=tool_choice,
+                debug=debug,
             )
 
-            if usage_oai := response.usage:
-                cost = self._cost_calculate(usage_oai, model_id_)
-                usage = usage.acc(
-                    Usage(
-                        input_tokens=usage_oai.input_tokens,
-                        output_tokens=usage_oai.output_tokens,
-                        total_cost=cost,
-                    )
+            usage = usage.acc(
+                Usage(
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    total_cost=response.total_cost,
                 )
+            )
 
-            tool_calls: list[ResponseFunctionToolCall] = list()
-            for item in response.output:
-                if isinstance(item, ResponseFunctionToolCall):
-                    tool_calls.append(item)
-                    if tool_calls_included_in_content:
-                        full_text_response.append(f"[Tool call: {item.name}]")
-                elif isinstance(item, ResponseOutputMessage):
-                    item_text: list[str] = []
-                    for content in item.content:
-                        if isinstance(content, ResponseOutputText):
-                            item_text.append(content.text)
-                        elif isinstance(content, ResponseOutputRefusal):  # pyright: ignore[reportUnnecessaryIsInstance]
-                            item_text.append(f"\n[Refusal: {content.refusal}]\n")
-                        else:
-                            raise AssertionError(
-                                f"Content should be either text or refusal, got {type(content)}"
-                            )
-                    item_text_str = "".join(item_text)
-                    full_text_response.append(item_text_str)
-                    messages_new.append(self._to_message(item_text_str, role="assistant"))
+            messages_new.extend(response.messages)
+            if response.content:
+                full_text_response.append(response.content)
 
-            if not tool_calls:
+            if not response.tool_calls:
                 break
 
-            tool_results = [self.tool_call(tc, safe=tool_calls_safe) for tc in tool_calls]
-            # let's be nice and actually convert the output to an input type here
-            tool_call_params = [ResponseFunctionToolCallParam(tc) for tc in tool_calls]  # pyright: ignore[reportArgumentType]
+            if tool_calls_included_in_content:
+                for tc in response.tool_calls:
+                    full_text_response.append(f"[Tool call: {tc.name}]")
 
-            messages_new.extend(tool_call_params)
+            tool_results = [
+                self.tool_call(tc, return_error_strings=tool_calls_safe)
+                for tc in response.tool_calls
+            ]
+
             messages_new.extend(tool_results)
 
         if self.history_db:
@@ -156,53 +132,22 @@ class Agent:
 
     def tool_call(
         self,
-        tool_call: ResponseFunctionToolCall,
-        safe: bool,
-    ) -> FunctionCallOutput:
-        if tool_call.name not in self.tool_callables:
+        tool_call: ToolCall,
+        return_error_strings: bool,
+    ) -> ToolResult:
+        if tool_call.name not in self.callables:
             raise ValueError(f"TollCall for a non-registered tool '{tool_call.name}'")
 
-        callable = self.tool_callables[tool_call.name]
-        params = json.loads(tool_call.arguments)  # pyright: ignore[reportAny]
+        callable = self.callables[tool_call.name]
         try:
-            output = callable(**params)
+            output = callable(**tool_call.parsed_args)
         except Exception as exc:
-            if safe:
+            if return_error_strings:
                 output = f"[Tool '{tool_call.name}' call failed: {exc.__class__.__name__} {exc}]"
             else:
                 raise RuntimeError(f"Tool '{tool_call.name}' call failed") from exc
 
-        return FunctionCallOutput(
+        return ToolResult(
             call_id=tool_call.call_id,
-            output=output,
-            type="function_call_output",
+            result=output,
         )
-
-    @staticmethod
-    def _to_message(
-        input: str,
-        role: Literal["system", "user", "assistant"] = "user",
-    ) -> EasyInputMessageParam:
-        return EasyInputMessageParam(
-            type="message",
-            role=role,
-            content=input,
-        )
-
-    @staticmethod
-    def _cost_calculate(usage: ResponseUsage, model_id: str) -> float:
-        if model_id not in _MODEL_COSTS:
-            warnings.warn(f"Unknown model '{model_id}' for cost calculation, defaulting to 0.0")
-            return 0.0
-
-        costs = _MODEL_COSTS[model_id]
-        input_cost = (usage.input_tokens / 1e6) * costs["input"]
-        output_cost = (usage.output_tokens / 1e6) * costs["output"]
-        return input_cost + output_cost
-
-
-_MODEL_COSTS = {
-    "gpt-5-nano": {"input": 0.05, "output": 0.4},
-    "gpt-5-mini": {"input": 0.25, "output": 2.0},
-    "gpt-5": {"input": 1.25, "output": 10.0},
-}
