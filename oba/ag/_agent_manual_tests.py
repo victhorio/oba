@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from oba.ag import tool
 from oba.ag.agent import Agent, Response
-from oba.ag.history import InMemoryDb
+from oba.ag.memory import EphemeralMemory
 from oba.ag.models.types import MessageTypes, Reasoning
 
 
@@ -33,8 +33,8 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
 
 
 async def test_message_history(c: httpx.AsyncClient) -> float:
-    memory = InMemoryDb()
-    agent = Agent(model_id="gpt-5-mini", client=c, history_db=memory)
+    memory = EphemeralMemory()
+    agent = Agent(model_id="gpt-5-mini", client=c, memory=memory)
     session_id = str(uuid4())
 
     response_a = await agent.run(
@@ -57,11 +57,11 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
 
 
 async def test_single_turn_tool_calling(c: httpx.AsyncClient) -> float:
-    memory = InMemoryDb()
+    memory = EphemeralMemory()
     agent = Agent(
         model_id="gpt-5-mini",
         client=c,
-        history_db=memory,
+        memory=memory,
         tools=[get_weather, search_wikipedia],
     )
     response = await agent.run("Qual a temperatura aqui no rio de janeiro hoje?")
@@ -75,11 +75,11 @@ async def test_single_turn_tool_calling(c: httpx.AsyncClient) -> float:
 
 
 async def test_multi_turn_tool_calling(c: httpx.AsyncClient) -> float:
-    memory = InMemoryDb()
+    memory = EphemeralMemory()
     agent = Agent(
         model_id="gpt-5.1",
         client=c,
-        history_db=memory,
+        memory=memory,
         tools=[get_weather],
         system_prompt=(
             "If a user asks for temperature in multiple locations,"

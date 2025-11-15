@@ -13,7 +13,7 @@ class SessionInfo:
     usage: Usage
 
 
-class HistoryDb(ABC):
+class Memory(ABC):
     @abstractmethod
     def get_messages(self, session_id: str) -> Sequence[MessageTypes]: ...
 

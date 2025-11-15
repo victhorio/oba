@@ -1,5 +1,5 @@
 from oba.ag.agent import Agent
-from oba.ag.history import HistoryDb
+from oba.ag.memory import Memory
 from oba.ag.tool import tool
 
 
@@ -11,4 +11,4 @@ async def run_manual_tests():
     print(f"\033[33;1mTotal cost: ${total_cost:.3f}\033[0m")
 
 
-__all__ = ["Agent", "tool", "HistoryDb", "run_manual_tests"]
+__all__ = ["Agent", "tool", "Memory", "run_manual_tests"]

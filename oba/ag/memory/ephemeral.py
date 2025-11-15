@@ -1,11 +1,11 @@
 from typing import Sequence, override
 
 from oba.ag.common import Usage
-from oba.ag.history.base import HistoryDb, SessionInfo
+from oba.ag.memory.base import Memory, SessionInfo
 from oba.ag.models.types import MessageTypes
 
 
-class InMemoryDb(HistoryDb):
+class EphemeralMemory(Memory):
     def __init__(self):
         # for each session_id we'll have a list of messages to be sent to the model
         self._db: dict[str, SessionInfo] = dict()

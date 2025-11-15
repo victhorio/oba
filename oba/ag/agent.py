@@ -5,7 +5,7 @@ import httpx
 from pydantic import BaseModel
 
 from oba.ag.common import Usage
-from oba.ag.history import HistoryDb
+from oba.ag.memory import Memory
 from oba.ag.models.openai import generate
 from oba.ag.models.types import Message, MessageTypes, ModelID, ToolCall, ToolResult
 from oba.ag.tool import Tool, ToolCallable
@@ -22,13 +22,13 @@ class Agent:
     def __init__(
         self,
         model_id: ModelID,
-        history_db: HistoryDb | None = None,
+        memory: Memory | None = None,
         tools: list[Tool] | None = None,
         client: httpx.AsyncClient | None = None,
         system_prompt: str | None = None,
     ):
         self.model_id: ModelID = model_id
-        self.history_db: HistoryDb | None = history_db
+        self.memory: Memory | None = memory
         self.client: httpx.AsyncClient = client or httpx.AsyncClient()
         self.system_prompt: Message | None = None
         if system_prompt:
@@ -65,8 +65,8 @@ class Agent:
         messages_prefix: list[MessageTypes] = []
         if self.system_prompt:
             messages_prefix.append(self.system_prompt)
-        if self.history_db:
-            messages_prefix.extend(self.history_db.get_messages(session_id_))
+        if self.memory:
+            messages_prefix.extend(self.memory.get_messages(session_id_))
 
         messages_new: list[MessageTypes] = [Message(role="user", content=input)]
 
@@ -116,8 +116,8 @@ class Agent:
 
             messages_new.extend(tool_results)
 
-        if self.history_db:
-            self.history_db.extend(
+        if self.memory:
+            self.memory.extend(
                 session_id=session_id_,
                 messages=messages_new,
                 usage=usage,
