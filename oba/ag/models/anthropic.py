@@ -5,14 +5,12 @@ from typing import Any, override
 from httpx import AsyncClient
 
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
-from oba.ag.models.model import Model, ToolChoice
+from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
 from oba.ag.models.types import (
     Content,
     Message,
     ModelID,
     Reasoning,
-    Response,
-    StructuredModelT,
     ToolCall,
     ToolResult,
     Usage,
@@ -104,9 +102,73 @@ class AnthropicModel(Model):
 
         response.raise_for_status()
 
-        return _normalize_response(
+        return self._normalize_response(
             response.json(),
-            model=self.model_id,
+        )
+
+    def _normalize_response(
+        self,
+        r: dict[str, Any],
+    ) -> Response:
+        required_keys = ("model", "content", "usage")
+        for key in required_keys:
+            if key not in r:
+                raise ValueError(f"response does not contain a `{key}` key")
+
+        usage_raw = r["usage"]
+        # TODO: add input tokens cache /writes/
+        usage = Usage(
+            input_tokens=usage_raw["input_tokens"],
+            output_tokens=usage_raw["output_tokens"],
+            input_tokens_cached=usage_raw["cache_read_input_tokens"],
+            # not available from anthropic API
+            output_tokens_reasoning=-1,
+        )
+
+        messages: list[Message] = list()
+        content_idxs: list[int] = list()
+        tool_call_idxs: list[int] = list()
+
+        for message in r["content"]:
+            if message["type"] == "thinking":
+                reasoning = Reasoning(
+                    encrypted_content=message["signature"],
+                    content=message["thinking"],
+                )
+                messages.append(reasoning)
+            elif message["type"] == "text":
+                content = Content(
+                    role="assistant",
+                    text=message["text"],
+                )
+                content_idxs.append(len(messages))
+                messages.append(content)
+            elif message["type"] == "tool_use":
+                tool_call = ToolCall(
+                    call_id=message["id"],
+                    name=message["name"],
+                    parsed_args=message["input"],
+                )
+                tool_call_idxs.append(len(messages))
+                messages.append(tool_call)
+            else:
+                warnings.warn(
+                    f"While parsing Anthropic response found unhandled type: {message['type']}"
+                )
+
+        if len(content_idxs) > 1:
+            raise AssertionError(
+                "Anthropic API returning more than one content per response, restructure Response"
+            )
+
+        return Response(
+            model=self,
+            model_api_id=r["model"],
+            usage=usage,
+            messages=messages,
+            structured_output=None,
+            _content_index=content_idxs[0] if content_idxs else None,
+            _tool_call_indexes=tool_call_idxs,
         )
 
 
@@ -160,69 +222,3 @@ def _transform_input(msg: Message) -> dict[str, object]:
 
     # note: lsp should report unreachable code below, greyed out
     raise ValueError(f"receive invalid message type: {type(msg)}")
-
-
-def _normalize_response(
-    r: dict[str, Any],
-    model: ModelID,
-) -> Response:
-    required_keys = ("model", "content", "usage")
-    for key in required_keys:
-        if key not in r:
-            raise ValueError(f"response does not contain a `{key}` key")
-
-    usage_raw = r["usage"]
-    # TODO: add input tokens cache /writes/
-    usage = Usage(
-        input_tokens=usage_raw["input_tokens"],
-        output_tokens=usage_raw["output_tokens"],
-        input_tokens_cached=usage_raw["cache_read_input_tokens"],
-        # not available from anthropic API
-        output_tokens_reasoning=-1,
-    )
-
-    messages: list[Message] = list()
-    content_idxs: list[int] = list()
-    tool_call_idxs: list[int] = list()
-
-    for message in r["content"]:
-        if message["type"] == "thinking":
-            reasoning = Reasoning(
-                encrypted_content=message["signature"],
-                content=message["thinking"],
-            )
-            messages.append(reasoning)
-        elif message["type"] == "text":
-            content = Content(
-                role="assistant",
-                text=message["text"],
-            )
-            content_idxs.append(len(messages))
-            messages.append(content)
-        elif message["type"] == "tool_use":
-            tool_call = ToolCall(
-                call_id=message["id"],
-                name=message["name"],
-                parsed_args=message["input"],
-            )
-            tool_call_idxs.append(len(messages))
-            messages.append(tool_call)
-        else:
-            warnings.warn(
-                f"While parsing Anthropic response found unhandled type: {message['type']}"
-            )
-
-    if len(content_idxs) > 1:
-        raise AssertionError(
-            "Anthropic API returning more than one content per response, restructure Response"
-        )
-
-    return Response(
-        model=model,
-        model_api=r["model"],
-        usage=usage,
-        messages=messages,
-        structured_output=None,
-        _content_index=content_idxs[0] if content_idxs else None,
-        _tool_call_indexes=tool_call_idxs,
-    )

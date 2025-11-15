@@ -6,14 +6,12 @@ from httpx import AsyncClient
 from typing_extensions import Literal
 
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
-from oba.ag.models.model import Model, ToolChoice
+from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
 from oba.ag.models.types import (
     Content,
     Message,
     ModelID,
     Reasoning,
-    Response,
-    StructuredModelT,
     ToolCall,
     ToolResult,
     Usage,
@@ -111,10 +109,88 @@ class OpenAIModel(Model):
 
         response.raise_for_status()
 
-        return _normalize_response(
+        return self._normalize_response(
             response.json(),
-            model=self.model_id,
             structure=structured_output,
+        )
+
+    def _normalize_response(
+        self,
+        r: dict[str, Any],
+        structure: type[StructuredModelT] | None,
+    ) -> Response[StructuredModelT]:
+        """
+        Transforms the OpenAI returned payload into an ag normalized Response object.
+        """
+
+        required_keys = ("model", "output", "usage")
+        for key in required_keys:
+            if key not in r:
+                raise ValueError(f"response does not contain a `{key}` key")
+
+        usage_raw = r["usage"]
+        usage = Usage(
+            input_tokens=usage_raw["input_tokens"],
+            output_tokens=usage_raw["output_tokens"],
+            input_tokens_cached=usage_raw["input_tokens_details"]["cached_tokens"],
+            output_tokens_reasoning=usage_raw["output_tokens_details"]["reasoning_tokens"],
+        )
+
+        messages: list[Message] = list()
+        content_idxs: list[int] = list()
+        tool_call_idxs: list[int] = list()
+        for out_item in r["output"]:
+            if out_item["type"] == "message":
+                for out_content_subitem in out_item["content"]:
+                    if text := out_content_subitem.get("text", ""):
+                        content = Content(
+                            role="assistant",
+                            text=text,
+                        )
+                        content_idxs.append(len(messages))
+                        messages.append(content)
+                    else:
+                        warnings.warn(
+                            f"While parsing OpenAI response found unhandled content type: {out_content_subitem}"
+                        )
+
+            elif out_item["type"] == "function_call":
+                tool_call = ToolCall(
+                    call_id=out_item["call_id"],
+                    name=out_item["name"],
+                    args=out_item["arguments"],
+                )
+                tool_call_idxs.append(len(messages))
+                messages.append(tool_call)
+
+            elif out_item["type"] == "reasoning":
+                reasoning = Reasoning(encrypted_content=out_item["encrypted_content"])
+                messages.append(reasoning)
+
+            else:
+                warnings.warn(
+                    f"While parsing OpenAI response found unhandled type: {out_item['type']}"
+                )
+
+        if len(content_idxs) > 1:
+            raise AssertionError(
+                "Anthropic API returning more than one content per response, restructure Response"
+            )
+
+        if structure:
+            content: Content = messages[content_idxs[0]]  # pyright: ignore[reportAssignmentType]
+            structured_output = structure.model_validate_json(content.text)
+        else:
+            structured_output = None
+
+        return Response(
+            model=self,
+            model_api_id=r["model"],
+            usage=usage,
+            messages=messages,
+            structured_output=structured_output,
+            _content_index=content_idxs[0] if content_idxs else None,
+            _tool_call_indexes=tool_call_idxs,
         )
 
 
@@ -180,81 +256,3 @@ def _transform_input(msg: Message) -> dict[str, object]:
 
     # note: lsp should report unreachable code below, greyed out
     raise ValueError(f"received invalid message type: {type(msg)}")
-
-
-def _normalize_response(
-    r: dict[str, Any],
-    model: ModelID,
-    structure: type[StructuredModelT] | None,
-) -> Response[StructuredModelT]:
-    """
-    Transforms the OpenAI returned payload into an ag normalized Response object.
-    """
-
-    required_keys = ("model", "output", "usage")
-    for key in required_keys:
-        if key not in r:
-            raise ValueError(f"response does not contain a `{key}` key")
-
-    usage_raw = r["usage"]
-    usage = Usage(
-        input_tokens=usage_raw["input_tokens"],
-        output_tokens=usage_raw["output_tokens"],
-        input_tokens_cached=usage_raw["input_tokens_details"]["cached_tokens"],
-        output_tokens_reasoning=usage_raw["output_tokens_details"]["reasoning_tokens"],
-    )
-
-    messages: list[Message] = list()
-    content_idxs: list[int] = list()
-    tool_call_idxs: list[int] = list()
-    for out_item in r["output"]:
-        if out_item["type"] == "message":
-            for out_content_subitem in out_item["content"]:
-                if text := out_content_subitem.get("text", ""):
-                    content = Content(
-                        role="assistant",
-                        text=text,
-                    )
-                    content_idxs.append(len(messages))
-                    messages.append(content)
-                else:
-                    warnings.warn(
-                        f"While parsing OpenAI response found unhandled content type: {out_content_subitem}"
-                    )
-
-        elif out_item["type"] == "function_call":
-            tool_call = ToolCall(
-                call_id=out_item["call_id"],
-                name=out_item["name"],
-                args=out_item["arguments"],
-            )
-            tool_call_idxs.append(len(messages))
-            messages.append(tool_call)
-
-        elif out_item["type"] == "reasoning":
-            reasoning = Reasoning(encrypted_content=out_item["encrypted_content"])
-            messages.append(reasoning)
-
-        else:
-            warnings.warn(f"While parsing OpenAI response found unhandled type: {out_item['type']}")
-
-    if len(content_idxs) > 1:
-        raise AssertionError(
-            "Anthropic API returning more than one content per response, restructure Response"
-        )
-
-    if structure:
-        content: Content = messages[content_idxs[0]]  # pyright: ignore[reportAssignmentType]
-        structured_output = structure.model_validate_json(content.text)
-    else:
-        structured_output = None
-
-    return Response(
-        model=model,
-        model_api=r["model"],
-        usage=usage,
-        messages=messages,
-        structured_output=structured_output,
-        _content_index=content_idxs[0] if content_idxs else None,
-        _tool_call_indexes=tool_call_idxs,
-    )

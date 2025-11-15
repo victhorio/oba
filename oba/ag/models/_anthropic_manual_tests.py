@@ -5,7 +5,8 @@ import httpx
 from attrs import asdict
 
 from oba.ag.models.anthropic import AnthropicModel
-from oba.ag.models.types import Content, Message, Response, StructuredModelT
+from oba.ag.models.model import Response, StructuredModelT
+from oba.ag.models.types import Content, Message
 
 
 async def main() -> float:
