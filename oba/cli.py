@@ -1,4 +1,5 @@
 import asyncio
+from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -23,11 +24,9 @@ def main() -> int:
 async def repl() -> int:
     config = configs.load()
     agent = agents.new(config)
-    print(f"{_ANSI_GREY}Using model: {config.model_id}\n{_ANSI_RESET}")
+    session_id = str(uuid4())
 
-    usage = agents.Usage()
-    ttft = RollingAverage()
-    duration = RollingAverage()
+    print(f"{_ANSI_GREY}Using model: {config.model_id}\n{_ANSI_RESET}")
 
     while True:
         try:
@@ -41,30 +40,17 @@ async def repl() -> int:
         if query == "exit":
             break
 
-        response = await agents.send_message(agent, query)
+        response = await agents.send_message(agent, query, session_id)
         print(response.content, end="\n\n")
 
-        _update_usage(usage, response.usage)
-        ttft = ttft.update(response.metrics.ttft)
-        duration = duration.update(response.metrics.duration)
+    assert agent.memory
+    usage = agent.memory.get_usage(session_id)
 
     print(f"\n{_ANSI_BOLD}Session summary:{_ANSI_RESET}")
     print(f"\tInput tokens: {usage.input_tokens:,}\tOutput tokens: {usage.output_tokens:,}")
     print(f"\tTotal cost: ${usage.total_cost:.3f}")
-    if ttft.n:
-        print(f"\tAverage time to first token: {ttft.avg:.2f}s over {ttft.n} responses")
-    if duration.n:
-        print(f"\tAverage duration: {duration.avg:.2f}s over {duration.n} responses")
 
     return 0
-
-
-def _update_usage(total: agents.Usage, new: agents.Usage) -> None:
-    total.input_tokens += new.input_tokens
-    total.output_tokens += new.output_tokens
-    total.reasoning_tokens += new.reasoning_tokens
-    total.total_tokens += new.total_tokens
-    total.total_cost += new.total_cost
 
 
 _ANSI_GREY = "\033[90m"

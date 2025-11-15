@@ -4,20 +4,17 @@ from json import JSONDecodeError
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, ValidationError, field_validator
+
+from oba.ag.models.message import ModelID
 
 _CONFIG_PATH = Path.home() / ".config" / "oba" / "settings.json"
 T = TypeVar("T")
 
 
 class Config(BaseModel):
-    # NOTE: GPT-5 family models don't support temperature/top_p parameters which is why
-    #       they're not included in the settings. Source:
-    #       https://platform.openai.com/docs/guides/latest-model#gpt-5-parameter-compatibility
-
     name: str
-    model_id: str = "gpt-5-mini"
-    max_conversation_turns: int = Field(default=20, ge=1)
+    model_id: ModelID = "gpt-5-mini"
     vault_path: str
 
     @field_validator("vault_path", mode="after")
@@ -52,22 +49,17 @@ def _read_settings(path: Path) -> Config:
 
 def _interactive_setup() -> Config:
     default_model_id = Config.model_fields["model_id"].default
-    default_max_turns = Config.model_fields["max_conversation_turns"].default
 
     print("Let's set up OBA. Press Enter to accept defaults where available.")
 
     name = _prompt_required("Name")
     model_id = _prompt_with_default("Model ID", default_model_id)
-    max_history_turns = _prompt_with_default(
-        "Max Conversation Turns", default_max_turns, parser_fn=int
-    )
     vault_path = _prompt_required("Path to the Vault")
 
     try:
         return Config(
             name=name,
             model_id=model_id,
-            max_conversation_turns=max_history_turns,
             vault_path=vault_path,
         )
     except ValueError as e:
