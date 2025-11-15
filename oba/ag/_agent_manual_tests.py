@@ -5,6 +5,7 @@ from typing import Literal, Sequence
 from uuid import uuid4
 
 import httpx
+from attrs import asdict
 from pydantic import BaseModel, Field
 
 from oba.ag import tool
@@ -100,7 +101,7 @@ def _show_response(r: Response, title: str) -> None:
     print(f"\033[33;1m--- test: {title} ---\033[0m")
     print(f"\tSession ID: {r.session_id}")
     print("\tUsage:")
-    pprint.pp(r.usage.model_dump(), width=110)
+    pprint.pp(asdict(r.usage), width=110)
     print("\tContent:")
     print(r.content)
     print("\n\n", end="")

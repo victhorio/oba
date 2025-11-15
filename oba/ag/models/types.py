@@ -105,7 +105,7 @@ class Response(Generic[StructuredModelT]):
 MessageTypes = Message | Reasoning | ToolCall | ToolResult
 
 
-# Model ID -> (Input cost, Ccahed input cost, Output cost) per 1M tokens
+# Model ID -> (Input cost, Cached input cost, Output cost) per 1M tokens
 _MODEL_COSTS: dict[ModelID, tuple[float, float, float]] = {
     "gpt-4.1": (2.00, 0.50, 8.00),
     "gpt-5-nano": (0.05, 0.005, 0.40),

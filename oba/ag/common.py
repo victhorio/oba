@@ -1,7 +1,8 @@
-from pydantic import BaseModel
+from attrs import define
 
 
-class Usage(BaseModel):
+@define
+class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
     total_cost: float = 0.0

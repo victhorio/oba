@@ -2,7 +2,7 @@ import uuid
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel
+from attrs import define
 
 from oba.ag.common import Usage
 from oba.ag.memory import Memory
@@ -11,7 +11,8 @@ from oba.ag.models.types import Message, MessageTypes, ModelID, ToolCall, ToolRe
 from oba.ag.tool import Tool, ToolCallable
 
 
-class Response(BaseModel):
+@define
+class Response:
     session_id: str
     model_id: str
     usage: Usage
