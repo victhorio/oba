@@ -7,8 +7,8 @@ from httpx import AsyncClient
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
 from oba.ag.models.model import Model, ToolChoice
 from oba.ag.models.types import (
+    Content,
     Message,
-    MessageTypes,
     ModelID,
     Reasoning,
     Response,
@@ -20,17 +20,16 @@ from oba.ag.models.types import (
 from oba.ag.tool import Tool
 
 
-# TODO: understand how to unify reasoning_effort, Claude can take "none" or a specified numerical budget
-#       while OpenAI receives none/minimal/low/medium/high
-#
 class AnthropicModel(Model):
     def __init__(
         self,
         model_id: ModelID,
         reasoning_effort: int = 0,
         api_key: str | None = None,
+        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ):
         super().__init__(model_id)
+        self.max_output_tokens = max_output_tokens
         self.reasoning_effort = reasoning_effort
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
         if not self.api_key:
@@ -39,9 +38,9 @@ class AnthropicModel(Model):
     @override
     async def generate(
         self,
-        messages: list[MessageTypes],
+        messages: list[Message],
         client: AsyncClient,
-        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        max_output_tokens: int | None = None,
         structured_output: type[StructuredModelT] | None = None,
         tools: list[Tool] | None = None,
         tool_choice: ToolChoice | None = None,
@@ -56,8 +55,10 @@ class AnthropicModel(Model):
             # TODO
             raise NotImplementedError("not implemented yet")
 
-        if isinstance(messages[0], Message) and messages[0].role == "system":
-            system_prompt = messages[0].content
+        max_output_tokens = max_output_tokens or self.max_output_tokens
+
+        if isinstance(messages[0], Content) and messages[0].role == "system":
+            system_prompt = messages[0].text
             messages = messages[1:]
         else:
             system_prompt = None
@@ -109,15 +110,15 @@ class AnthropicModel(Model):
         )
 
 
-def _transform_input(msg: MessageTypes) -> dict[str, object]:
+def _transform_input(msg: Message) -> dict[str, object]:
     # TODO: some caching not to reparse same items everytime?
 
-    if isinstance(msg, Message):
+    if isinstance(msg, Content):
         if msg.role == "system":
             raise ValueError("claude does not support mid history system messages")
         return {
             "role": msg.role,
-            "content": msg.content,
+            "content": msg.text,
         }
 
     if isinstance(msg, Reasoning):
@@ -180,9 +181,8 @@ def _normalize_response(
         output_tokens_reasoning=-1,
     )
 
-    messages: list[MessageTypes] = list()
+    messages: list[Message] = list()
     content_idxs: list[int] = list()
-    reasoning_idxs: list[int] = list()
     tool_call_idxs: list[int] = list()
 
     for message in r["content"]:
@@ -191,12 +191,11 @@ def _normalize_response(
                 encrypted_content=message["signature"],
                 content=message["thinking"],
             )
-            reasoning_idxs.append(len(messages))
             messages.append(reasoning)
         elif message["type"] == "text":
-            content = Message(
+            content = Content(
                 role="assistant",
-                content=message["text"],
+                text=message["text"],
             )
             content_idxs.append(len(messages))
             messages.append(content)
@@ -204,8 +203,7 @@ def _normalize_response(
             tool_call = ToolCall(
                 call_id=message["id"],
                 name=message["name"],
-                args="",
-                _parsed_args=message["input"],
+                parsed_args=message["input"],
             )
             tool_call_idxs.append(len(messages))
             messages.append(tool_call)
@@ -214,19 +212,17 @@ def _normalize_response(
                 f"While parsing Anthropic response found unhandled type: {message['type']}"
             )
 
-    if len(tool_call_idxs) > 1:
+    if len(content_idxs) > 1:
         raise AssertionError(
-            "a single call returned multiple reasoning blocks, let's adapt the Response type"
+            "Anthropic API returning more than one content per response, restructure Response"
         )
-
-    all_content = "\n".join([messages[i].content for i in content_idxs])  # pyright: ignore[reportAttributeAccessIssue]
 
     return Response(
         model=model,
         model_api=r["model"],
         usage=usage,
-        content=all_content,
-        tool_calls=[messages[i] for i in tool_call_idxs],  # pyright: ignore[reportArgumentType]
-        reasoning=messages[reasoning_idxs[0]] if reasoning_idxs else None,  # pyright: ignore[reportArgumentType]
+        messages=messages,
         structured_output=None,
+        _content_index=content_idxs[0] if content_idxs else None,
+        _tool_call_indexes=tool_call_idxs,
     )

@@ -5,7 +5,7 @@ import httpx
 from attrs import asdict
 
 from oba.ag.models.anthropic import AnthropicModel
-from oba.ag.models.types import Message, MessageTypes, Response, StructuredModelT
+from oba.ag.models.types import Content, Message, Response, StructuredModelT
 
 
 async def main() -> float:
@@ -18,14 +18,14 @@ async def main() -> float:
 
 
 async def test_regular_message(c: httpx.AsyncClient) -> float:
-    messages: list[MessageTypes] = [
-        Message(
+    messages: list[Message] = [
+        Content(
             role="system",
-            content="Always include one emoji at the beginning of your response.",
+            text="Always include one emoji at the beginning of your response.",
         ),
-        Message(
+        Content(
             role="user",
-            content="Hey there! What's up?",
+            text="Hey there! What's up?",
         ),
     ]
 
@@ -37,32 +37,30 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
 
 
 async def test_message_history(c: httpx.AsyncClient) -> float:
-    messages: list[MessageTypes] = [
-        Message(
+    messages: list[Message] = [
+        Content(
             role="user",
-            content="Hey! My name is Victhor, what's your name?",
+            text="Hey! My name is Victhor, what's your name?",
         )
     ]
 
-    model = AnthropicModel("claude-haiku-4-5", reasoning_effort=1024)
+    model = AnthropicModel("claude-haiku-4-5", reasoning_effort=1024, max_output_tokens=2048)
     response_a = await model.generate(
         messages=messages,
         client=c,
-        max_output_tokens=2048,
     )
     _show_response(response_a, "message history: first turn")
 
     messages.extend(response_a.messages)
     messages.append(
-        Message(
+        Content(
             role="user",
-            content="Hey, can you remind me what's my name again?",
+            text="Hey, can you remind me what's my name again?",
         )
     )
     response_b = await model.generate(
         messages=messages,
         client=c,
-        max_output_tokens=2048,
     )
     _show_response(response_b, "message history: second turn")
     return response_a.total_cost + response_b.total_cost

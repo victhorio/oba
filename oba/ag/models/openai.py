@@ -8,8 +8,8 @@ from typing_extensions import Literal
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
 from oba.ag.models.model import Model, ToolChoice
 from oba.ag.models.types import (
+    Content,
     Message,
-    MessageTypes,
     ModelID,
     Reasoning,
     Response,
@@ -29,8 +29,10 @@ class OpenAIModel(Model):
         model_id: ModelID,
         reasoning_effort: ReasoningEffort = "low",
         api_key: str | None = None,
+        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ):
         super().__init__(model_id)
+        self.max_output_tokens = max_output_tokens
         self.reasoning_effort: ReasoningEffort | None = reasoning_effort
         self.api_key: str = api_key or os.getenv("OPENAI_API_KEY", "")
         if not self.api_key:
@@ -39,9 +41,9 @@ class OpenAIModel(Model):
     @override
     async def generate(
         self,
-        messages: list[MessageTypes],
+        messages: list[Message],
         client: AsyncClient,
-        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        max_output_tokens: int | None = None,
         structured_output: type[StructuredModelT] | None = None,
         tools: list[Tool] | None = None,
         tool_choice: ToolChoice | None = None,
@@ -49,6 +51,8 @@ class OpenAIModel(Model):
         timeout: int = DEFAULT_TIMEOUT,
         debug: bool = False,
     ) -> Response[StructuredModelT]:
+        max_output_tokens = max_output_tokens or self.max_output_tokens
+
         payload = {
             "input": [_transform_input(m) for m in messages],
             "model": self.model_id,
@@ -132,7 +136,7 @@ def _parse_tool(tool: Tool) -> dict[str, object]:
     }
 
 
-def _transform_input(msg: MessageTypes) -> dict[str, object]:
+def _transform_input(msg: Message) -> dict[str, object]:
     """
     Transforms an ag normalized instance of MessageTypes into an OpenAI compatible payload.
     """
@@ -143,11 +147,11 @@ def _transform_input(msg: MessageTypes) -> dict[str, object]:
     #       actually fully rely on it (specially for reasoning), but since we want a
     #       stateless API we set store=False and therefore can discard all IDs
 
-    if isinstance(msg, Message):
+    if isinstance(msg, Content):
         return {
             "type": "message",
             "role": msg.role,
-            "content": msg.content,
+            "content": msg.text,
         }
 
     if isinstance(msg, Reasoning):
@@ -200,42 +204,57 @@ def _normalize_response(
         output_tokens_reasoning=usage_raw["output_tokens_details"]["reasoning_tokens"],
     )
 
-    out_content_parts: list[str] = list()
-    out_tool_calls: list[ToolCall] = list()
-    out_reasoning: list[Reasoning] = list()
+    messages: list[Message] = list()
+    content_idxs: list[int] = list()
+    tool_call_idxs: list[int] = list()
     for out_item in r["output"]:
         if out_item["type"] == "message":
-            for out_content in out_item["content"]:
-                if "text" in out_content:
-                    out_part = out_content["text"]
-                    out_content_parts.append(out_part)
+            for out_content_subitem in out_item["content"]:
+                if text := out_content_subitem.get("text", ""):
+                    content = Content(
+                        role="assistant",
+                        text=text,
+                    )
+                    content_idxs.append(len(messages))
+                    messages.append(content)
+                else:
+                    warnings.warn(
+                        f"While parsing OpenAI response found unhandled content type: {out_content_subitem}"
+                    )
+
         elif out_item["type"] == "function_call":
-            tc = ToolCall(
+            tool_call = ToolCall(
                 call_id=out_item["call_id"],
                 name=out_item["name"],
                 args=out_item["arguments"],
             )
-            out_tool_calls.append(tc)
+            tool_call_idxs.append(len(messages))
+            messages.append(tool_call)
+
         elif out_item["type"] == "reasoning":
             reasoning = Reasoning(encrypted_content=out_item["encrypted_content"])
-            out_reasoning.append(reasoning)
+            messages.append(reasoning)
+
         else:
             warnings.warn(f"While parsing OpenAI response found unhandled type: {out_item['type']}")
 
-    out_content = "\n".join(out_content_parts)
-    out_parsed = structure.model_validate_json(out_content) if structure else None
-
-    if len(out_reasoning) > 1:
+    if len(content_idxs) > 1:
         raise AssertionError(
-            "a single call returned multiple reasoning blocks, let's adapt the Response type"
+            "Anthropic API returning more than one content per response, restructure Response"
         )
+
+    if structure:
+        content: Content = messages[content_idxs[0]]  # pyright: ignore[reportAssignmentType]
+        structured_output = structure.model_validate_json(content.text)
+    else:
+        structured_output = None
 
     return Response(
         model=model,
         model_api=r["model"],
         usage=usage,
-        content=out_content,
-        tool_calls=out_tool_calls,
-        structured_output=out_parsed,
-        reasoning=out_reasoning[0] if out_reasoning else None,
+        messages=messages,
+        structured_output=structured_output,
+        _content_index=content_idxs[0] if content_idxs else None,
+        _tool_call_indexes=tool_call_idxs,
     )

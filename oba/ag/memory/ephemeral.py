@@ -2,7 +2,7 @@ from typing import Sequence, override
 
 from oba.ag.common import Usage
 from oba.ag.memory.base import Memory, SessionInfo
-from oba.ag.models.types import MessageTypes
+from oba.ag.models.types import Message
 
 
 class EphemeralMemory(Memory):
@@ -11,7 +11,7 @@ class EphemeralMemory(Memory):
         self._db: dict[str, SessionInfo] = dict()
 
     @override
-    def get_messages(self, session_id: str) -> Sequence[MessageTypes]:
+    def get_messages(self, session_id: str) -> Sequence[Message]:
         if session_id not in self._db:
             return list()
         return self._db[session_id].messages
@@ -26,7 +26,7 @@ class EphemeralMemory(Memory):
     def extend(
         self,
         session_id: str,
-        messages: Sequence[MessageTypes],
+        messages: Sequence[Message],
         usage: Usage,
     ) -> None:
         if session_id not in self._db:

@@ -4,7 +4,7 @@ from typing import Literal
 from httpx import AsyncClient
 
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS
-from oba.ag.models.types import MessageTypes, ModelID, Response, StructuredModelT
+from oba.ag.models.types import Message, ModelID, Response, StructuredModelT
 from oba.ag.tool import Tool
 
 ToolChoice = Literal["none", "auto", "required"]
@@ -20,7 +20,7 @@ class Model(ABC):
     @abstractmethod
     async def generate(
         self,
-        messages: list[MessageTypes],
+        messages: list[Message],
         client: AsyncClient,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         structured_output: type[StructuredModelT] | None = None,

@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from oba.ag import Tool
 from oba.ag.models.openai import OpenAIModel
-from oba.ag.models.types import Message, MessageTypes, Response, StructuredModelT, ToolResult
+from oba.ag.models.types import Content, Message, Response, StructuredModelT, ToolResult
 
 
 async def main() -> float:
@@ -25,14 +25,14 @@ async def main() -> float:
 
 
 async def test_regular_message(c: httpx.AsyncClient) -> float:
-    messages: list[MessageTypes] = [
-        Message(
+    messages: list[Message] = [
+        Content(
             role="system",
-            content="Always include one emoji at the beginning of your response.",
+            text="Always include one emoji at the beginning of your response.",
         ),
-        Message(
+        Content(
             role="user",
-            content="Hey there! What's up?",
+            text="Hey there! What's up?",
         ),
     ]
 
@@ -43,10 +43,10 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
 
 
 async def test_message_history(c: httpx.AsyncClient) -> float:
-    messages: list[MessageTypes] = [
-        Message(
+    messages: list[Message] = [
+        Content(
             role="user",
-            content="Hey! My name is Victhor, what's your name?",
+            text="Hey! My name is Victhor, what's your name?",
         )
     ]
 
@@ -59,9 +59,9 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
 
     messages.extend(response_a.messages)
     messages.append(
-        Message(
+        Content(
             role="user",
-            content="Hey, can you remind me what's my name again?",
+            text="Hey, can you remind me what's my name again?",
         )
     )
     response_b = await model.generate(
@@ -78,10 +78,10 @@ async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
         reasoning: str = Field(description="A short opinionated reasoning behind the pick")
         country: str = Field(description="The name of the country")
 
-    messages: list[MessageTypes] = [
-        Message(
+    messages: list[Message] = [
+        Content(
             role="user",
-            content="Hey! If I had to pick a country to live in, which do you suggest? You HAVE to pick one.",
+            text="Hey! If I had to pick a country to live in, which do you suggest? You HAVE to pick one.",
         ),
     ]
 
@@ -145,10 +145,10 @@ async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
             max_length=3,
         )
 
-    messages: list[MessageTypes] = [
-        Message(
+    messages: list[Message] = [
+        Content(
             role="user",
-            content="Hey! I need your help coming up with ideas for 3 random NPCs, each from a difference race! Just go for it",
+            text="Hey! I need your help coming up with ideas for 3 random NPCs, each from a difference race! Just go for it",
         )
     ]
 
@@ -193,10 +193,10 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
     ]
 
     total_cost = 0.0
-    m: list[MessageTypes] = [
-        Message(
+    m: list[Message] = [
+        Content(
             role="user",
-            content="Qual a temperatura aqui no rio de janeiro hoje?",
+            text="Qual a temperatura aqui no rio de janeiro hoje?",
         )
     ]
 

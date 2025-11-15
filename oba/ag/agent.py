@@ -6,7 +6,7 @@ from attrs import define
 from oba.ag.common import Usage
 from oba.ag.memory import Memory
 from oba.ag.models.model import Model
-from oba.ag.models.types import Message, MessageTypes, ToolCall, ToolResult
+from oba.ag.models.types import Content, Message, ToolCall, ToolResult
 from oba.ag.tool import Tool, ToolCallable
 
 
@@ -30,11 +30,11 @@ class Agent:
         self.model: Model = model
         self.memory: Memory | None = memory
         self.client: httpx.AsyncClient = client or httpx.AsyncClient()
-        self.system_prompt: Message | None = None
+        self.system_prompt: Content | None = None
         if system_prompt:
-            self.system_prompt = Message(
+            self.system_prompt = Content(
                 role="system",
-                content=system_prompt,
+                text=system_prompt,
             )
 
         # TODO: change this to simply be a list[type[BaseModel]] instead
@@ -60,13 +60,13 @@ class Agent:
         model_ = model or self.model
         session_id_ = session_id or str(uuid.uuid4())
 
-        messages_prefix: list[MessageTypes] = []
+        messages_prefix: list[Message] = []
         if self.system_prompt:
             messages_prefix.append(self.system_prompt)
         if self.memory:
             messages_prefix.extend(self.memory.get_messages(session_id_))
 
-        messages_new: list[MessageTypes] = [Message(role="user", content=input)]
+        messages_new: list[Message] = [Content(role="user", text=input)]
 
         usage = Usage()
         full_text_response: list[str] = list()
@@ -96,7 +96,7 @@ class Agent:
 
             messages_new.extend(response.messages)
             if response.content:
-                full_text_response.append(response.content)
+                full_text_response.append(response.content.text)
 
             if not response.tool_calls:
                 break

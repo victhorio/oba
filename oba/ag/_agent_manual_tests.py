@@ -13,7 +13,7 @@ from oba.ag.agent import Agent, Response
 from oba.ag.memory import EphemeralMemory
 from oba.ag.models.anthropic import AnthropicModel
 from oba.ag.models.openai import OpenAIModel
-from oba.ag.models.types import MessageTypes, Reasoning
+from oba.ag.models.types import Message, Reasoning
 
 
 async def main() -> float:
@@ -139,7 +139,7 @@ def _show_response(r: Response, title: str) -> None:
     print("\n\n", end="")
 
 
-def _show_memory(m: Sequence[MessageTypes], title: str) -> None:
+def _show_memory(m: Sequence[Message], title: str) -> None:
     print(f"\033[33;1m--- test: {title} ---\033[0m")
     mm = [
         x
