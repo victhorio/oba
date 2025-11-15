@@ -1,6 +1,7 @@
 import asyncio
 import pprint
 import random
+import tempfile
 from typing import Literal, Sequence
 from uuid import uuid4
 
@@ -10,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from oba.ag import Tool
 from oba.ag.agent import Agent, Response
-from oba.ag.memory import EphemeralMemory
+from oba.ag.memory import EphemeralMemory, SQLiteMemory
 from oba.ag.models.anthropic import AnthropicModel
 from oba.ag.models.message import Message, Reasoning
 from oba.ag.models.openai import OpenAIModel
@@ -21,6 +22,7 @@ async def main() -> float:
         costs = await asyncio.gather(
             test_regular_message(c),
             test_message_history_openai(c),
+            test_message_history_openai_sqlite(c),
             test_message_history_anthropic(c),
             test_single_turn_tool_calling(c),
             test_multi_turn_tool_calling(c),
@@ -58,6 +60,50 @@ async def test_message_history_openai(c: httpx.AsyncClient) -> float:
 
     assert response_a.usage.total_cost + response_b.usage.total_cost == memory_usage.total_cost
     _show_memory(memory_messages, "message history: memory: openai")
+
+    return memory_usage.total_cost
+
+
+async def test_message_history_openai_sqlite(c: httpx.AsyncClient) -> float:
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        memory_db_path = f.name
+    memory = SQLiteMemory(memory_db_path)
+
+    model = OpenAIModel("gpt-5-mini")
+    agent = Agent(model=model, client=c, memory=memory)
+    session_id = str(uuid4())
+
+    response_a = await agent.run(
+        "Hey! My name is Victhor, what's your name?",
+        session_id=session_id,
+    )
+
+    memory.close()
+    del memory
+    del agent
+
+    new_memory = SQLiteMemory(memory_db_path)
+    new_agent = Agent(model=model, client=c, memory=new_memory)
+
+    response_b = await new_agent.run(
+        "Hey, can you remind me what's my name again?",
+        session_id=session_id,
+    )
+
+    new_memory.close()
+    del new_memory
+    del new_agent
+
+    after_memory = SQLiteMemory(memory_db_path)
+
+    memory_messages = after_memory.get_messages(session_id)
+    memory_usage = after_memory.get_usage(session_id)
+
+    assert (
+        abs(response_a.usage.total_cost + response_b.usage.total_cost - memory_usage.total_cost)
+        < 1e-10
+    )
+    _show_memory(memory_messages, "message history: memory: openai + sqlite3")
 
     return memory_usage.total_cost
 
