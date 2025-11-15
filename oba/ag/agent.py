@@ -1,13 +1,12 @@
 import uuid
-from typing import Literal
 
 import httpx
 from attrs import define
 
 from oba.ag.common import Usage
 from oba.ag.memory import Memory
-from oba.ag.models.openai import generate
-from oba.ag.models.types import Message, MessageTypes, ModelID, ToolCall, ToolResult
+from oba.ag.models.model import Model
+from oba.ag.models.types import Message, MessageTypes, ToolCall, ToolResult
 from oba.ag.tool import Tool, ToolCallable
 
 
@@ -22,13 +21,13 @@ class Response:
 class Agent:
     def __init__(
         self,
-        model_id: ModelID,
+        model: Model,
         memory: Memory | None = None,
         tools: list[Tool] | None = None,
         client: httpx.AsyncClient | None = None,
         system_prompt: str | None = None,
     ):
-        self.model_id: ModelID = model_id
+        self.model: Model = model
         self.memory: Memory | None = memory
         self.client: httpx.AsyncClient = client or httpx.AsyncClient()
         self.system_prompt: Message | None = None
@@ -50,8 +49,7 @@ class Agent:
         self,
         input: str,
         *,
-        model_id: ModelID | None = None,
-        reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None,
+        model: Model | None = None,
         timeout_api: int = 30,
         tool_calls_safe: bool = True,
         tool_calls_max_turns: int = 3,
@@ -59,8 +57,7 @@ class Agent:
         session_id: str | None = None,
         debug: bool = False,
     ) -> Response:
-        model_id_ = model_id or self.model_id
-        reasoning_effort_ = reasoning_effort or "medium"
+        model_ = model or self.model
         session_id_ = session_id or str(uuid.uuid4())
 
         messages_prefix: list[MessageTypes] = []
@@ -80,11 +77,9 @@ class Agent:
             is_last_turn = turn == tool_calls_max_turns - 1
             tool_choice = "auto" if not is_last_turn else "none"
 
-            response = await generate(
+            response = await model_.generate(
                 client=self.client,
                 messages=messages_prefix + messages_new,
-                model=model_id_,
-                reasoning_effort=reasoning_effort_,
                 tools=self.tools,
                 timeout=timeout_api,
                 tool_choice=tool_choice,
@@ -126,7 +121,7 @@ class Agent:
 
         return Response(
             session_id=session_id_,
-            model_id=model_id_,
+            model_id=model_.model_id,
             usage=usage,
             content="\n\n".join(full_text_response),
         )

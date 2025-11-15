@@ -1,9 +1,11 @@
 import os
-from typing import Any, Literal
+from typing import Any, override
 
 from httpx import AsyncClient
 from pydantic import BaseModel
 
+from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
+from oba.ag.models.model import Model, ReasoningEffort, ToolChoice
 from oba.ag.models.types import (
     Message,
     MessageTypes,
@@ -18,102 +20,100 @@ from oba.ag.models.types import (
 from oba.ag.tool import Tool
 
 
-async def generate(
-    client: AsyncClient,
-    messages: list[MessageTypes],
-    model: ModelID,
-    max_output_tokens: int | None = None,
-    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = None,
-    structured_output: type[StructuredModelT] | None = None,
-    tools: list[Tool] | None = None,
-    tool_choice: Literal["none", "auto", "required"] | None = None,
-    parallel_tool_calls: bool = False,
-    timeout=20,
-    debug: bool = False,
-) -> Response[StructuredModelT]:
-    """
-    Generate a model response asynchronously via OpenAI's Responses API.
+class OpenAIModel(Model):
+    def __init__(
+        self,
+        model_id: ModelID,
+        reasoning_effort: ReasoningEffort | None = None,
+        api_key: str | None = None,
+    ):
+        super().__init__(model_id)
+        self.reasoning_effort: ReasoningEffort | None = reasoning_effort
+        self.api_key: str = api_key or os.getenv("OPENAI_API_KEY", "")
+        if not self.api_key:
+            raise ValueError("either pass api_key or set OPENAI_API_KEY for OpenAIModel usage")
 
-    Args:
-        client: Shared HTTPX client used for issuing the API request.
-        messages: Conversation history encoded as MessageTypes instances.
-        model: Target model identifier to invoke.
-        max_output_tokens: Optional cap for the model output tokens.
-        reasoning_effort: Optional reasoning effort level when using reasoning models.
-        structured_output: Optional Pydantic model to coerce structured responses.
-        tools: Optional list of Tool definitions available to the model.
-        tool_choice: Optional override to force/disable tool invocation.
-        parallel_tool_calls: Whether tool calls may be executed in parallel.
-        timeout: HTTP timeout (seconds) for the API request.
-        debug: When True, pretty-print request/response payloads.
+    @override
+    async def generate(
+        self,
+        messages: list[MessageTypes],
+        client: AsyncClient,
+        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        reasoning_effort: ReasoningEffort | None = None,
+        structured_output: type[StructuredModelT] | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: ToolChoice | None = None,
+        parallel_tool_calls: bool = False,
+        timeout: int = DEFAULT_TIMEOUT,
+        debug: bool = False,
+    ) -> Response[StructuredModelT]:
+        reasoning_effort = reasoning_effort or self.reasoning_effort
 
-    Returns:
-        Response[StructuredModelT]: Standard response container for the project.
-    """
-
-    api_key = os.getenv("OPENAI_API_KEY")
-
-    payload = {
-        "input": [_transform_input(m) for m in messages],
-        "model": model,
-        # NOTE: We do not want to rely on OpenAI for storing any messages. However, since
-        #       we are not allowed to have the reasoning content, and OpenAI reasoning models
-        #       keep their reasoning as part of their context, we need to ask for the API to
-        #       include encrypted reasoning content in their response. This means we'll be
-        #       able to store it and reuse it later.
-        "store": False,
-        "include": [
-            "reasoning.encrypted_content",
-        ],
-    }
-
-    if max_output_tokens:
-        payload["max_output_tokens"] = max_output_tokens
-    if reasoning_effort:
-        payload["reasoning"] = {"effort": reasoning_effort}
-    if structured_output:
-        payload["text"] = {
-            "format": {
-                "type": "json_schema",
-                "name": structured_output.__name__,
-                "strict": True,
-                "schema": structured_output.model_json_schema(),
-            }
+        payload = {
+            "input": [_transform_input(m) for m in messages],
+            "model": self.model_id,
+            # NOTE: We do not want to rely on OpenAI for storing any messages. However, since
+            #       we are not allowed to have the reasoning content, and OpenAI reasoning models
+            #       keep their reasoning as part of their context, we need to ask for the API to
+            #       include encrypted reasoning content in their response. This means we'll be
+            #       able to store it and reuse it later.
+            "store": False,
+            "include": [
+                "reasoning.encrypted_content",
+            ],
         }
 
-    if tools:
-        payload["tools"] = [_parse_tool(tool) for tool in tools]
-        payload["parallel_tool_calls"] = parallel_tool_calls
-        if tool_choice:
-            payload["tool_choice"] = tool_choice
+        if max_output_tokens:
+            payload["max_output_tokens"] = max_output_tokens
+        if reasoning_effort:
+            payload["reasoning"] = {"effort": reasoning_effort}
+        if structured_output:
+            payload["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": structured_output.__name__,
+                    "strict": True,
+                    "schema": structured_output.model_json_schema(),
+                }
+            }
 
-    if debug:
-        import pprint
+        if tools:
+            payload["tools"] = [_parse_tool(tool) for tool in tools]
+            payload["parallel_tool_calls"] = parallel_tool_calls
+            if tool_choice:
+                payload["tool_choice"] = tool_choice
 
-        print("--- Sent payload to OpenAI ---")
-        pprint.pp(payload, width=110)
-        print("------------------------------")
+        if debug:
+            import pprint
 
-    response = await client.post(
-        "https://api.openai.com/v1/responses",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        json=payload,
-        timeout=timeout,
-    )
+            print("--- Sent payload to OpenAI ---")
+            pprint.pp(payload, width=110)
+            print("------------------------------")
 
-    if debug:
-        import pprint
+        response = await client.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+            json=payload,
+            timeout=timeout,
+        )
 
-        print("--- Returned payload from OpenAI ---")
-        pprint.pp(response.json(), width=110)
-        print("------------------------------------")
+        if debug:
+            import pprint
 
-    response.raise_for_status()
+            print("--- Returned payload from OpenAI ---")
+            pprint.pp(response.json(), width=110)
+            print("------------------------------------")
 
-    return _normalize_response(response.json(), model=model, structure=structured_output)
+        response.raise_for_status()
+
+        return _normalize_response(
+            response.json(),
+            model=self.model_id,
+            structure=structured_output,
+        )
 
 
 def _parse_tool(tool: Tool) -> dict[str, object]:

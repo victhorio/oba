@@ -8,7 +8,7 @@ from attrs import asdict
 from pydantic import BaseModel, ConfigDict, Field
 
 from oba.ag import Tool
-from oba.ag.models.openai import generate
+from oba.ag.models.openai import OpenAIModel
 from oba.ag.models.types import Message, MessageTypes, Response, StructuredModelT, ToolResult
 
 
@@ -36,7 +36,8 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
         ),
     ]
 
-    response = await generate(c, messages=messages, model="gpt-5-nano", reasoning_effort="minimal")
+    model = OpenAIModel("gpt-5-nano", reasoning_effort="low")
+    response = await model.generate(messages=messages, client=c)
     _show_response(response, "simple message")
     return response.total_cost
 
@@ -49,10 +50,10 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         )
     ]
 
-    response_a = await generate(
-        c,
+    model = OpenAIModel("gpt-5-mini", reasoning_effort="low")
+    response_a = await model.generate(
         messages=messages,
-        model="gpt-5-mini",
+        client=c,
         reasoning_effort="medium",
     )
     _show_response(response_a, "message history: first turn")
@@ -64,11 +65,9 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
             content="Hey, can you remind me what's my name again?",
         )
     )
-    response_b = await generate(
-        c,
+    response_b = await model.generate(
         messages=messages,
-        model="gpt-5-mini",
-        reasoning_effort="minimal",
+        client=c,
     )
     _show_response(response_b, "message history: second turn")
     return response_a.total_cost + response_b.total_cost
@@ -87,11 +86,10 @@ async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
         ),
     ]
 
-    response = await generate(
-        c,
+    model = OpenAIModel("gpt-5-mini", reasoning_effort="low")
+    response = await model.generate(
+        client=c,
         messages=messages,
-        model="gpt-5-mini",
-        reasoning_effort="minimal",
         structured_output=CountryPick,
     )
     _show_response(response, "structured output: strings")
@@ -155,11 +153,10 @@ async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
         )
     ]
 
-    response = await generate(
-        c,
+    model = OpenAIModel("gpt-5.1", reasoning_effort="low")
+    response = await model.generate(
+        client=c,
         messages=messages,
-        model="gpt-5.1",
-        reasoning_effort="low",
         structured_output=NPCBrainstorm,
     )
 
@@ -204,10 +201,10 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         )
     ]
 
-    response = await generate(
-        c,
+    model = OpenAIModel("gpt-5-mini", reasoning_effort="low")
+    response = await model.generate(
+        client=c,
         messages=m,
-        model="gpt-5-mini",
         tools=tool_deck,
     )
     total_cost += response.total_cost
@@ -220,10 +217,9 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
     m.extend(response.messages)
     m.append(tr)
 
-    response = await generate(
-        c,
+    response = await model.generate(
+        client=c,
         messages=m,
-        model="gpt-5-mini",
         tools=tool_deck,
     )
     total_cost += response.total_cost

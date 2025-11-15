@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from oba.ag import Tool
 from oba.ag.agent import Agent, Response
 from oba.ag.memory import EphemeralMemory
+from oba.ag.models.openai import OpenAIModel
 from oba.ag.models.types import MessageTypes, Reasoning
 
 
@@ -27,7 +28,8 @@ async def main() -> float:
 
 
 async def test_regular_message(c: httpx.AsyncClient) -> float:
-    agent = Agent(model_id="gpt-5-nano", client=c)
+    model = OpenAIModel(model_id="gpt-5-nano")
+    agent = Agent(model=model, client=c)
     response = await agent.run("Hey there! What's up?")
     _show_response(response, "simple message")
     return response.usage.total_cost
@@ -35,7 +37,8 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
 
 async def test_message_history(c: httpx.AsyncClient) -> float:
     memory = EphemeralMemory()
-    agent = Agent(model_id="gpt-5-mini", client=c, memory=memory)
+    model = OpenAIModel("gpt-5-mini")
+    agent = Agent(model=model, client=c, memory=memory)
     session_id = str(uuid4())
 
     response_a = await agent.run(
@@ -59,8 +62,9 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
 
 async def test_single_turn_tool_calling(c: httpx.AsyncClient) -> float:
     memory = EphemeralMemory()
+    model = OpenAIModel("gpt-5-mini")
     agent = Agent(
-        model_id="gpt-5-mini",
+        model=model,
         client=c,
         memory=memory,
         tools=[get_weather, search_wikipedia],
@@ -77,8 +81,9 @@ async def test_single_turn_tool_calling(c: httpx.AsyncClient) -> float:
 
 async def test_multi_turn_tool_calling(c: httpx.AsyncClient) -> float:
     memory = EphemeralMemory()
+    model = OpenAIModel("gpt-5.1")
     agent = Agent(
-        model_id="gpt-5.1",
+        model=model,
         client=c,
         memory=memory,
         tools=[get_weather],
