@@ -31,11 +31,36 @@ async def generate(
     timeout=20,
     debug: bool = False,
 ) -> Response[StructuredModelT]:
+    """
+    Generate a model response asynchronously via OpenAI's Responses API.
+
+    Args:
+        client: Shared HTTPX client used for issuing the API request.
+        messages: Conversation history encoded as MessageTypes instances.
+        model: Target model identifier to invoke.
+        max_output_tokens: Optional cap for the model output tokens.
+        reasoning_effort: Optional reasoning effort level when using reasoning models.
+        structured_output: Optional Pydantic model to coerce structured responses.
+        tools: Optional list of Tool definitions available to the model.
+        tool_choice: Optional override to force/disable tool invocation.
+        parallel_tool_calls: Whether tool calls may be executed in parallel.
+        timeout: HTTP timeout (seconds) for the API request.
+        debug: When True, pretty-print request/response payloads.
+
+    Returns:
+        Response[StructuredModelT]: Standard response container for the project.
+    """
+
     api_key = os.getenv("OPENAI_API_KEY")
 
     payload = {
-        "input": [_parse_input(m) for m in messages],
+        "input": [_transform_input(m) for m in messages],
         "model": model,
+        # NOTE: We do not want to rely on OpenAI for storing any messages. However, since
+        #       we are not allowed to have the reasoning content, and OpenAI reasoning models
+        #       keep their reasoning as part of their context, we need to ask for the API to
+        #       include encrypted reasoning content in their response. This means we'll be
+        #       able to store it and reuse it later.
         "store": False,
         "include": [
             "reasoning.encrypted_content",
@@ -88,7 +113,7 @@ async def generate(
 
     response.raise_for_status()
 
-    return _parse_response(response.json(), model=model, structure=structured_output)
+    return _normalize_response(response.json(), model=model, structure=structured_output)
 
 
 def _parse_tool(tool: Tool) -> dict[str, object]:
@@ -109,8 +134,16 @@ def _parse_tool(tool: Tool) -> dict[str, object]:
     }
 
 
-def _parse_input(msg: MessageTypes) -> dict[str, object]:
+def _transform_input(msg: MessageTypes) -> dict[str, object]:
+    """
+    Transforms an ag normalized instance of MessageTypes into an OpenAI compatible payload.
+    """
+
     # TODO: some caching not to reparse same items everytime?
+
+    # NOTE: usually these payloads will have an `id`, and when using store=True we can
+    #       actually fully rely on it (specially for reasoning), but since we want a
+    #       stateless API we set store=False and therefore can discard all IDs
 
     if isinstance(msg, Message):
         return {
@@ -123,6 +156,8 @@ def _parse_input(msg: MessageTypes) -> dict[str, object]:
         return {
             "type": "reasoning",
             "encrypted_content": msg.encrypted_content,
+            # NOTE: even when not using reasoning summaries, the API will still require
+            #       the summary field with an empty list for validation
             "summary": list(),
         }
 
@@ -145,11 +180,15 @@ def _parse_input(msg: MessageTypes) -> dict[str, object]:
     raise ValueError(f"received invalid message type: {type(msg)}")
 
 
-def _parse_response(
+def _normalize_response(
     r: dict[str, Any],
     model: ModelID,
-    structure: type[BaseModel] | None = None,
+    structure: type[BaseModel] | None,
 ) -> Response:
+    """
+    Transforms the OpenAI returned payload into an ag normalized Response object.
+    """
+
     required_keys = ("model", "output", "usage")
     for key in required_keys:
         if key not in r:
