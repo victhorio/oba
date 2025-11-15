@@ -1,11 +1,13 @@
 from typing import Callable
 
+from attrs import define
 from pydantic import BaseModel
 
 ToolCallable = Callable[..., str]
 
 
-class Tool(BaseModel):
+@define
+class Tool:
     spec: type[BaseModel]
     callable: ToolCallable
 

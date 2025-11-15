@@ -174,8 +174,9 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         Returns the weather for the given location.
         """
 
-        latitude: int = Field(description="The latitude of the location")
-        longitude: int = Field(description="The longitude of the location")
+        city: str = Field(
+            description="Name of a city, followed by country. For example: New York, USA"
+        )
         unit: Literal["C", "F"] = Field(description="The unit of temperature")
         days_delta: int = Field(
             description="The `delta` of days relative to today. For example: 0 means today, 1 means tomorrow.",

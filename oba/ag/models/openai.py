@@ -66,7 +66,7 @@ async def generate(
         import pprint
 
         print("--- Sent payload to OpenAI ---")
-        pprint.pprint(payload, width=110)
+        pprint.pp(payload, width=110)
         print("------------------------------")
 
     response = await client.post(
@@ -83,7 +83,7 @@ async def generate(
         import pprint
 
         print("--- Returned payload from OpenAI ---")
-        pprint.pprint(response.json(), width=110)
+        pprint.pp(response.json(), width=110)
         print("------------------------------------")
 
     response.raise_for_status()
