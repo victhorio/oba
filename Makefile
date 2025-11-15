@@ -8,3 +8,7 @@ fmt:
 test:
 	@uv run ruff check .
 	@uv run pytest
+
+test-manual:
+	@uv run python -c "import asyncio; from oba.ag import run_manual_tests; asyncio.run(run_manual_tests())"
+	@uv run python -c "import asyncio; from oba.ag.models import run_manual_tests; asyncio.run(run_manual_tests())"

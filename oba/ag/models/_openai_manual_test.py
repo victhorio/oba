@@ -7,7 +7,7 @@ import httpx
 from attrs import asdict
 from pydantic import BaseModel, ConfigDict, Field
 
-from oba.ag import tool
+from oba.ag import Tool
 from oba.ag.models.openai import generate
 from oba.ag.models.types import Message, MessageTypes, Response, StructuredModelT, ToolResult
 
@@ -192,8 +192,8 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         query: str = Field(description="The query to use in the search")
 
     tool_deck = [
-        tool(GetWeather, lambda x: ""),
-        tool(SearchWikipedia, lambda x: ""),
+        Tool(GetWeather, lambda x: ""),
+        Tool(SearchWikipedia, lambda x: ""),
     ]
 
     total_cost = 0.0

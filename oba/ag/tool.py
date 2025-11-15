@@ -10,10 +10,3 @@ ToolCallable = Callable[..., str]
 class Tool:
     spec: type[BaseModel]
     callable: ToolCallable
-
-
-def tool(
-    spec: type[BaseModel],
-    callable: ToolCallable,
-) -> Tool:
-    return Tool(spec=spec, callable=callable)
