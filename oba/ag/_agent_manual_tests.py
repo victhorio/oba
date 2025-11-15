@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from oba.ag import Tool
 from oba.ag.agent import Agent, Response
 from oba.ag.memory import EphemeralMemory
+from oba.ag.models.anthropic import AnthropicModel
 from oba.ag.models.openai import OpenAIModel
 from oba.ag.models.types import MessageTypes, Reasoning
 
@@ -19,7 +20,8 @@ async def main() -> float:
     async with httpx.AsyncClient() as c:
         costs = await asyncio.gather(
             test_regular_message(c),
-            test_message_history(c),
+            test_message_history_openai(c),
+            test_message_history_anthropic(c),
             test_single_turn_tool_calling(c),
             test_multi_turn_tool_calling(c),
         )
@@ -35,7 +37,7 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     return response.usage.total_cost
 
 
-async def test_message_history(c: httpx.AsyncClient) -> float:
+async def test_message_history_openai(c: httpx.AsyncClient) -> float:
     memory = EphemeralMemory()
     model = OpenAIModel("gpt-5-mini")
     agent = Agent(model=model, client=c, memory=memory)
@@ -55,7 +57,32 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
     memory_usage = memory.get_usage(session_id)
 
     assert response_a.usage.total_cost + response_b.usage.total_cost == memory_usage.total_cost
-    _show_memory(memory_messages, "message history: memory")
+    _show_memory(memory_messages, "message history: memory: openai")
+
+    return memory_usage.total_cost
+
+
+async def test_message_history_anthropic(c: httpx.AsyncClient) -> float:
+    memory = EphemeralMemory()
+    model = AnthropicModel("claude-haiku-4-5", reasoning_effort=1024)
+    agent = Agent(model=model, client=c, memory=memory)
+    session_id = str(uuid4())
+
+    response_a = await agent.run(
+        "Hey! My name is Victhor, what's your name?",
+        session_id=session_id,
+    )
+
+    response_b = await agent.run(
+        "Hey, can you remind me what's my name again?",
+        session_id=session_id,
+    )
+
+    memory_messages = memory.get_messages(session_id)
+    memory_usage = memory.get_usage(session_id)
+
+    assert response_a.usage.total_cost + response_b.usage.total_cost == memory_usage.total_cost
+    _show_memory(memory_messages, "message history: memory: anthropic")
 
     return memory_usage.total_cost
 
@@ -117,7 +144,7 @@ def _show_memory(m: Sequence[MessageTypes], title: str) -> None:
     mm = [
         x
         if not isinstance(x, Reasoning)
-        else Reasoning(encrypted_content=x.encrypted_content[10:20] + "...")
+        else Reasoning(encrypted_content=x.encrypted_content[10:20] + "...", content=x.content)
         for x in m
     ]
     pprint.pp(mm, width=110)

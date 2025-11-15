@@ -50,11 +50,10 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         )
     ]
 
-    model = OpenAIModel("gpt-5-mini", reasoning_effort="low")
+    model = OpenAIModel("gpt-5-mini", reasoning_effort="medium")
     response_a = await model.generate(
         messages=messages,
         client=c,
-        reasoning_effort="medium",
     )
     _show_response(response_a, "message history: first turn")
 

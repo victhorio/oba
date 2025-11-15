@@ -11,6 +11,9 @@ ModelID = Literal[
     "gpt-5-mini",
     "gpt-5",
     "gpt-5.1",
+    "claude-haiku-4-5",
+    "claude-sonnet-4-5",
+    "claude-opus-4-1",
 ]
 
 
@@ -19,8 +22,10 @@ class Reasoning:
     # NOTE: We need to store reasoning blocks from OpenAI to maintain it in context,
     #       but they only accept returning encrypted reasoning contents.
     encrypted_content: str
+    content: str = field(default="")
 
 
+# TODO:TODO: rename to Content
 @define(slots=True)
 class Message:
     role: Role
@@ -33,7 +38,7 @@ class ToolCall:
     call_id: str
     name: str
     args: str
-    _parsed_args: dict[str, object] = field(init=False, factory=dict)
+    _parsed_args: dict[str, object] = field(factory=dict)
 
     @property
     def parsed_args(self) -> dict[str, object]:
@@ -121,6 +126,7 @@ MessageTypes = Message | Reasoning | ToolCall | ToolResult
 """The different types that can make up a conversation history: messages, reasoning blocks, tool calls and tool results."""
 
 
+# TODO: add cache WRITE costs
 # Model ID -> (Input cost, Cached input cost, Output cost) per 1M tokens
 _MODEL_COSTS: dict[ModelID, tuple[float, float, float]] = {
     "gpt-4.1": (2.00, 0.50, 8.00),
@@ -128,4 +134,7 @@ _MODEL_COSTS: dict[ModelID, tuple[float, float, float]] = {
     "gpt-5-mini": (0.25, 0.025, 2.00),
     "gpt-5": (1.25, 0.125, 10.00),
     "gpt-5.1": (1.25, 0.125, 10.00),
+    "claude-haiku-4-5": (1.00, 0.100, 5.00),
+    "claude-sonnet-4-5": (3.00, 0.300, 15.00),
+    "claude-opus-4-1": (15.00, 1.500, 75.00),
 }

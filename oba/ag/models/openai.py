@@ -1,11 +1,12 @@
 import os
+import warnings
 from typing import Any, override
 
 from httpx import AsyncClient
-from pydantic import BaseModel
+from typing_extensions import Literal
 
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
-from oba.ag.models.model import Model, ReasoningEffort, ToolChoice
+from oba.ag.models.model import Model, ToolChoice
 from oba.ag.models.types import (
     Message,
     MessageTypes,
@@ -19,19 +20,21 @@ from oba.ag.models.types import (
 )
 from oba.ag.tool import Tool
 
+ReasoningEffort = Literal["none", "low", "medium", "high"]
+
 
 class OpenAIModel(Model):
     def __init__(
         self,
         model_id: ModelID,
-        reasoning_effort: ReasoningEffort | None = None,
+        reasoning_effort: ReasoningEffort = "low",
         api_key: str | None = None,
     ):
         super().__init__(model_id)
         self.reasoning_effort: ReasoningEffort | None = reasoning_effort
         self.api_key: str = api_key or os.getenv("OPENAI_API_KEY", "")
         if not self.api_key:
-            raise ValueError("either pass api_key or set OPENAI_API_KEY for OpenAIModel usage")
+            raise ValueError("either pass api_key or set OPENAI_API_KEY in env")
 
     @override
     async def generate(
@@ -39,7 +42,6 @@ class OpenAIModel(Model):
         messages: list[MessageTypes],
         client: AsyncClient,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
-        reasoning_effort: ReasoningEffort | None = None,
         structured_output: type[StructuredModelT] | None = None,
         tools: list[Tool] | None = None,
         tool_choice: ToolChoice | None = None,
@@ -47,11 +49,11 @@ class OpenAIModel(Model):
         timeout: int = DEFAULT_TIMEOUT,
         debug: bool = False,
     ) -> Response[StructuredModelT]:
-        reasoning_effort = reasoning_effort or self.reasoning_effort
-
         payload = {
             "input": [_transform_input(m) for m in messages],
             "model": self.model_id,
+            "max_output_tokens": max_output_tokens,
+            "reasoning": {"effort": self.reasoning_effort},
             # NOTE: We do not want to rely on OpenAI for storing any messages. However, since
             #       we are not allowed to have the reasoning content, and OpenAI reasoning models
             #       keep their reasoning as part of their context, we need to ask for the API to
@@ -63,10 +65,6 @@ class OpenAIModel(Model):
             ],
         }
 
-        if max_output_tokens:
-            payload["max_output_tokens"] = max_output_tokens
-        if reasoning_effort:
-            payload["reasoning"] = {"effort": reasoning_effort}
         if structured_output:
             payload["text"] = {
                 "format": {
@@ -183,8 +181,8 @@ def _transform_input(msg: MessageTypes) -> dict[str, object]:
 def _normalize_response(
     r: dict[str, Any],
     model: ModelID,
-    structure: type[BaseModel] | None,
-) -> Response:
+    structure: type[StructuredModelT] | None,
+) -> Response[StructuredModelT]:
     """
     Transforms the OpenAI returned payload into an ag normalized Response object.
     """
@@ -221,6 +219,8 @@ def _normalize_response(
         elif out_item["type"] == "reasoning":
             reasoning = Reasoning(encrypted_content=out_item["encrypted_content"])
             out_reasoning.append(reasoning)
+        else:
+            warnings.warn(f"While parsing OpenAI response found unhandled type: {out_item['type']}")
 
     out_content = "\n".join(out_content_parts)
     out_parsed = structure.model_validate_json(out_content) if structure else None

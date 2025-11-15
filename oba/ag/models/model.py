@@ -7,7 +7,6 @@ from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS
 from oba.ag.models.types import MessageTypes, ModelID, Response, StructuredModelT
 from oba.ag.tool import Tool
 
-ReasoningEffort = Literal["none", "low", "medium", "high"]
 ToolChoice = Literal["none", "auto", "required"]
 
 
@@ -24,7 +23,6 @@ class Model(ABC):
         messages: list[MessageTypes],
         client: AsyncClient,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
-        reasoning_effort: ReasoningEffort | None = None,
         structured_output: type[StructuredModelT] | None = None,
         tools: list[Tool] | None = None,
         tool_choice: ToolChoice | None = None,
