@@ -7,13 +7,15 @@ import httpx
 from attrs import asdict
 from pydantic import BaseModel, ConfigDict, Field
 
+import oba.ag._manual_test_utils as test_utils
 from oba.ag import Tool
 from oba.ag.models.message import Content, Message, ToolResult
 from oba.ag.models.model import Response, StructuredModelT
 from oba.ag.models.openai import OpenAIModel
 
 
-async def main() -> float:
+async def run_manual_tests() -> None:
+    test_utils.print_header("Anthropic Model Tests")
     async with httpx.AsyncClient() as c:
         costs = await asyncio.gather(
             test_regular_message(c),
@@ -22,7 +24,9 @@ async def main() -> float:
             test_structured_output_complex(c),
             test_tool_calling(c),
         )
-    return sum(costs)
+
+    total_cost = sum(costs)
+    test_utils.print_cost(total_cost)
 
 
 async def test_regular_message(c: httpx.AsyncClient) -> float:
@@ -40,7 +44,7 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     model = OpenAIModel("gpt-5-nano", reasoning_effort="low")
     response = await model.generate(messages=messages, client=c)
     _show_response(response, "simple message")
-    return response.total_cost
+    return response.dollar_cost
 
 
 async def test_message_history(c: httpx.AsyncClient) -> float:
@@ -70,7 +74,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         client=c,
     )
     _show_response(response_b, "message history: second turn")
-    return response_a.total_cost + response_b.total_cost
+    return response_a.dollar_cost + response_b.dollar_cost
 
 
 async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
@@ -100,7 +104,7 @@ async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
     country_pick = response.structured_output
     _ = country_pick
 
-    return response.total_cost
+    return response.dollar_cost
 
 
 async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
@@ -162,7 +166,7 @@ async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
 
     _show_response(response, "structured output: complex")
 
-    return response.total_cost
+    return response.dollar_cost
 
 
 async def test_tool_calling(c: httpx.AsyncClient) -> float:
@@ -207,7 +211,7 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         messages=m,
         tools=tool_deck,
     )
-    total_cost += response.total_cost
+    total_cost += response.dollar_cost
     _show_response(response, "tool calling: tool call")
 
     assert response.tool_calls
@@ -222,17 +226,18 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         messages=m,
         tools=tool_deck,
     )
-    total_cost += response.total_cost
+    total_cost += response.dollar_cost
     _show_response(response, "tool calling: tool result")
 
     return total_cost
 
 
-def _show_response(response: Response[StructuredModelT], name: str) -> None:
-    print(f"\033[33;1m--- test: {name} ---\033[0m")
+def _show_response(response: Response[StructuredModelT], title: str) -> None:
+    test_utils.print_result_header(title)
     pprint.pp(asdict(response), width=110)
 
     if response.structured_output:
         print("\n\t\033[33mStructured output:\033[0m")
         pprint.pp(response.structured_output.model_dump(), width=110)
-    print("\n\n", end="")
+
+    test_utils.print_result_footer()

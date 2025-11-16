@@ -1,16 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from attrs import define
-
 from oba.ag.common import Usage
 from oba.ag.models.message import Message
-
-
-@define
-class SessionInfo:
-    messages: list[Message]
-    usage: Usage
 
 
 class Memory(ABC):

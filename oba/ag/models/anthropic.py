@@ -1,5 +1,4 @@
 import os
-import warnings
 from typing import Any, override
 
 from httpx import AsyncClient
@@ -17,8 +16,6 @@ from oba.ag.models.message import (
 from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
 from oba.ag.tool import Tool
 
-_PROVIDER_KEY = "ant"
-
 
 class AnthropicModel(Model):
     def __init__(
@@ -28,7 +25,16 @@ class AnthropicModel(Model):
         api_key: str | None = None,
         max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
     ):
-        super().__init__(model_id)
+        if model_id not in _ANTHROPIC_MODEL_IDS:
+            raise ValueError(
+                f"received model_id `{model_id}`, but expected one of {_ANTHROPIC_MODEL_IDS}"
+            )
+        if reasoning_effort < 0:
+            raise ValueError(f"received reasoning_effort `{reasoning_effort}`, expected >= 0")
+        if max_output_tokens < 1:
+            raise ValueError(f"received max_output_tokens `{max_output_tokens}`, expected >= 1")
+
+        self.model_id = model_id
         self.max_output_tokens = max_output_tokens
         self.reasoning_effort = reasoning_effort
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
@@ -39,6 +45,7 @@ class AnthropicModel(Model):
     async def generate(
         self,
         messages: list[Message],
+        *,
         client: AsyncClient,
         max_output_tokens: int | None = None,
         structured_output: type[StructuredModelT] | None = None,
@@ -50,7 +57,7 @@ class AnthropicModel(Model):
     ) -> Response[StructuredModelT]:
         if structured_output:
             # TODO: under the beta header `structured-outputs-2025-11-13` it's supported now
-            raise NotImplementedError("anthropic does not support structured outputs")
+            raise ValueError("anthropic does not support structured outputs")
         if tools:
             # TODO
             raise NotImplementedError("not implemented yet")
@@ -64,7 +71,7 @@ class AnthropicModel(Model):
             system_prompt = None
 
         payload = {
-            "messages": [_transform_input(m) for m in messages],
+            "messages": [_transform_message_to_payload(m) for m in messages],
             "model": self.model_id,
             "max_tokens": max_output_tokens,
         }
@@ -102,13 +109,19 @@ class AnthropicModel(Model):
             pprint.pp(response.json(), width=110)
             print("---------------------------------")
 
-        response.raise_for_status()
+        if not response.is_success:
+            print("\033[31;1mERROR:\033[0m: API returned an error")
+            try:
+                import pprint
 
-        return self._normalize_response(
-            response.json(),
-        )
+                pprint.pp(response.json(), width=110)
+            except Exception:
+                pass
+            response.raise_for_status()
 
-    def _normalize_response(
+        return self._parse_response(response.json())
+
+    def _parse_response(
         self,
         r: dict[str, Any],
     ) -> Response:
@@ -128,8 +141,8 @@ class AnthropicModel(Model):
         )
 
         messages: list[Message] = list()
-        content_idxs: list[int] = list()
-        tool_call_idxs: list[int] = list()
+        messages_content: Content | None = None
+        messages_tool_calls: list[ToolCall] = list()
 
         for message in r["content"]:
             if message["type"] == "thinking":
@@ -137,59 +150,62 @@ class AnthropicModel(Model):
                     encrypted_content=message["signature"],
                     content=message["thinking"],
                 )
+
                 messages.append(reasoning)
+
             elif message["type"] == "text":
-                content = Content(
+                # i only expect a single text message per response, so if we've already parsed
+                # content into `messages_content` this is unexpected
+                if messages_content is not None:
+                    raise AssertionError("unexpectedly found response with multiple text entries")
+
+                messages_content = Content(
                     role="assistant",
                     text=message["text"],
                 )
-                content_idxs.append(len(messages))
-                messages.append(content)
+
+                messages.append(messages_content)
+
             elif message["type"] == "tool_use":
                 tool_call = ToolCall(
                     call_id=message["id"],
                     name=message["name"],
                     parsed_args=message["input"],
                 )
-                tool_call_idxs.append(len(messages))
-                messages.append(tool_call)
-            else:
-                warnings.warn(
-                    f"While parsing Anthropic response found unhandled type: {message['type']}"
-                )
 
-        if len(content_idxs) > 1:
-            raise AssertionError(
-                "Anthropic API returning more than one content per response, restructure Response"
-            )
+                messages.append(tool_call)
+                messages_tool_calls.append(tool_call)
+
+            else:
+                raise AssertionError(f"unexpected/unhandled message type in response: {message}")
 
         return Response(
             model=self,
             model_api_id=r["model"],
             usage=usage,
             messages=messages,
+            content=messages_content,
+            tool_calls=messages_tool_calls,
             structured_output=None,
-            _content_index=content_idxs[0] if content_idxs else None,
-            _tool_call_indexes=tool_call_idxs,
         )
 
 
-def _transform_input(msg: Message) -> dict[str, object]:
-    if parsed := msg._cached_parse.get(_PROVIDER_KEY, dict()):
-        return parsed
+def _transform_message_to_payload(msg: Message) -> dict[str, object]:
+    payload: dict[str, object]
+
+    # make sure that we don't need to recompute the payload for this message
+    if payload := msg._provider_payload_cache.get(_ANTHROPIC_PROVIDER_ID, dict()):
+        return payload
 
     if isinstance(msg, Content):
         if msg.role == "system":
             raise ValueError("claude does not support mid history system messages")
-        parsed: dict[str, object] = {
+        payload = {
             "role": msg.role,
             "content": msg.text,
         }
-        msg._cached_parse[_PROVIDER_KEY] = parsed
-        return parsed
-
-    if isinstance(msg, Reasoning):
-        parsed = {
+    elif isinstance(msg, Reasoning):
+        payload = {
             "role": "assistant",
             "content": [
                 {
@@ -199,11 +215,8 @@ def _transform_input(msg: Message) -> dict[str, object]:
                 }
             ],
         }
-        msg._cached_parse[_PROVIDER_KEY] = parsed
-        return parsed
-
-    if isinstance(msg, ToolCall):
-        parsed = {
+    elif isinstance(msg, ToolCall):
+        payload = {
             "role": "assistant",
             "content": [
                 {
@@ -214,11 +227,8 @@ def _transform_input(msg: Message) -> dict[str, object]:
                 }
             ],
         }
-        msg._cached_parse[_PROVIDER_KEY] = parsed
-        return parsed
-
-    if isinstance(msg, ToolResult):
-        parsed = {
+    elif isinstance(msg, ToolResult):
+        payload = {
             "role": "user",
             "content": [
                 {
@@ -228,8 +238,18 @@ def _transform_input(msg: Message) -> dict[str, object]:
                 }
             ],
         }
-        msg._cached_parse[_PROVIDER_KEY] = parsed
-        return parsed
+    else:
+        # this branch should be greyed out by the LSP due to exhaustive match
+        raise ValueError(f"receive invalid message type: {type(msg)}")
 
-    # note: lsp should report unreachable code below, greyed out
-    raise ValueError(f"receive invalid message type: {type(msg)}")
+    # remember to save the result before returning
+    msg._provider_payload_cache[_ANTHROPIC_PROVIDER_ID] = payload
+    return payload
+
+
+_ANTHROPIC_PROVIDER_ID = "anthropic"
+_ANTHROPIC_MODEL_IDS: list[ModelID] = [
+    "claude-haiku-4-5",
+    "claude-sonnet-4-5",
+    "claude-opus-4-1",
+]

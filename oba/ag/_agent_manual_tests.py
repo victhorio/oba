@@ -9,6 +9,7 @@ import httpx
 from attrs import asdict
 from pydantic import BaseModel, Field
 
+import oba.ag._manual_test_utils as test_utils
 from oba.ag import Tool
 from oba.ag.agent import Agent, Response
 from oba.ag.memory import EphemeralMemory, SQLiteMemory
@@ -17,7 +18,9 @@ from oba.ag.models.message import Message, Reasoning
 from oba.ag.models.openai import OpenAIModel
 
 
-async def main() -> float:
+async def run_manual_tests() -> None:
+    test_utils.print_header("Anthropic Model Tests")
+
     async with httpx.AsyncClient() as c:
         costs = await asyncio.gather(
             test_regular_message(c),
@@ -28,7 +31,8 @@ async def main() -> float:
             test_multi_turn_tool_calling(c),
         )
 
-    return sum(costs)
+    total_cost = sum(costs)
+    test_utils.print_cost(total_cost)
 
 
 async def test_regular_message(c: httpx.AsyncClient) -> float:
@@ -176,17 +180,20 @@ async def test_multi_turn_tool_calling(c: httpx.AsyncClient) -> float:
 
 
 def _show_response(r: Response, title: str) -> None:
-    print(f"\033[33;1m--- test: {title} ---\033[0m")
+    test_utils.print_result_header(title)
+
     print(f"\tSession ID: {r.session_id}")
     print("\tUsage:")
     pprint.pp(asdict(r.usage), width=110)
     print("\tContent:")
     print(r.content)
-    print("\n\n", end="")
+
+    test_utils.print_result_footer()
 
 
 def _show_memory(m: Sequence[Message], title: str) -> None:
-    print(f"\033[33;1m--- test: {title} ---\033[0m")
+    test_utils.print_result_header(title)
+
     mm = [
         x
         if not isinstance(x, Reasoning)
@@ -194,7 +201,8 @@ def _show_memory(m: Sequence[Message], title: str) -> None:
         for x in m
     ]
     pprint.pp(mm, width=110)
-    print("\n\n", end="")
+
+    test_utils.print_result_footer()
 
 
 # tool definitions

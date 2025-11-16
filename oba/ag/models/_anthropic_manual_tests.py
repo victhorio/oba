@@ -4,18 +4,23 @@ import pprint
 import httpx
 from attrs import asdict
 
+import oba.ag._manual_test_utils as test_utils
 from oba.ag.models.anthropic import AnthropicModel
 from oba.ag.models.message import Content, Message
 from oba.ag.models.model import Response, StructuredModelT
 
 
-async def main() -> float:
+async def run_manual_tests() -> None:
+    test_utils.print_header("Anthropic Model Tests")
+
     async with httpx.AsyncClient() as c:
         costs = await asyncio.gather(
             test_regular_message(c),
             test_message_history(c),
         )
-    return sum(costs)
+
+    total_cost = sum(costs)
+    test_utils.print_cost(total_cost)
 
 
 async def test_regular_message(c: httpx.AsyncClient) -> float:
@@ -34,7 +39,7 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     response = await model.generate(messages=messages, client=c)
     _show_response(response, "simple message")
 
-    return response.total_cost
+    return response.dollar_cost
 
 
 async def test_message_history(c: httpx.AsyncClient) -> float:
@@ -64,14 +69,15 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         client=c,
     )
     _show_response(response_b, "message history: second turn")
-    return response_a.total_cost + response_b.total_cost
+    return response_a.dollar_cost + response_b.dollar_cost
 
 
-def _show_response(response: Response[StructuredModelT], name: str) -> None:
-    print(f"\033[33;1m--- test: {name} ---\033[0m")
+def _show_response(response: Response[StructuredModelT], title: str) -> None:
+    test_utils.print_result_header(title)
     pprint.pp(asdict(response), width=110)
 
     if response.structured_output:
         print("\n\t\033[33mStructured output:\033[0m")
         pprint.pp(response.structured_output.model_dump(), width=110)
-    print("\n\n", end="")
+
+    test_utils.print_result_footer()

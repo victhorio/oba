@@ -1,7 +1,9 @@
 from typing import Sequence, override
 
+from attrs import define
+
 from oba.ag.common import Usage
-from oba.ag.memory.base import Memory, SessionInfo
+from oba.ag.memory.base import Memory
 from oba.ag.models.message import Message
 
 
@@ -34,3 +36,9 @@ class EphemeralMemory(Memory):
 
         self._db[session_id].messages.extend(messages)
         self._db[session_id].usage = self._db[session_id].usage.acc(usage)
+
+
+@define(slots=True)
+class SessionInfo:
+    messages: list[Message]
+    usage: Usage

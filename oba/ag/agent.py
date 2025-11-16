@@ -90,7 +90,7 @@ class Agent:
                 Usage(
                     input_tokens=response.usage.input_tokens,
                     output_tokens=response.usage.output_tokens,
-                    total_cost=response.total_cost,
+                    total_cost=response.dollar_cost,
                 )
             )
 

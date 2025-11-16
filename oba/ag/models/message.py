@@ -18,8 +18,16 @@ ModelID = Literal[
 
 @define(slots=True)
 class MessageBase:
-    _cached_parse: dict[str, dict[str, object]] = field(init=False, factory=dict)
-    """Used to store different parsed versions for different models to avoid recomputation."""
+    _provider_payload_cache: dict[str, dict[str, object]] = field(init=False, factory=dict)
+    """
+    All `Message` types should have this field which is used to store the result of the
+    transformation from our standardized data type into a valid payload (dict[str, object])
+    that can be sent in the API call for different providers so that we don't need to repeatedly
+    transform the same message throughout different calls relating to the same conversation history.
+    The root key of _provider_payload_cache is a provider specific key, so that if we're running
+    the same conversation history with models from different providers, we won't have overlaps,
+    invalidations or incompatibilities.
+    """
 
 
 @define(slots=True)
