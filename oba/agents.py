@@ -1,10 +1,9 @@
 from datetime import date
 
 from oba import prompts, vault
-from oba.ag import Agent
-from oba.ag.agent import Response
+from oba.ag import Agent, Response
 from oba.ag.memory import EphemeralMemory
-from oba.ag.models.openai import OpenAIModel
+from oba.ag.models import OpenAIModel
 from oba.configs import Config
 
 
@@ -16,6 +15,7 @@ def new(config: Config) -> Agent:
         daily_notes=vault.format_notes(recent_dailies),
         today=date.today().isoformat(),
     )
+
     model = OpenAIModel(
         model_id=config.model_id,
         reasoning_effort="low",

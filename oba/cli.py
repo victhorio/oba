@@ -1,20 +1,7 @@
 import asyncio
 from uuid import uuid4
 
-from pydantic import BaseModel
-
 from oba import agents, configs
-
-
-class RollingAverage(BaseModel):
-    avg: float = 0.0
-    n: int = 0
-
-    def update(self, new: float | None) -> "RollingAverage":
-        if new is not None:
-            self.n += 1
-            self.avg += (new - self.avg) / self.n
-        return self
 
 
 def main() -> int:

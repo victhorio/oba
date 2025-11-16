@@ -1,4 +1,7 @@
-from . import message, openai
+from .anthropic import AnthropicModel
+from .message import Content, Message, Reasoning, ToolCall, ToolResult
+from .model import Model, Response
+from .openai import OpenAIModel
 
 
 async def run_manual_tests():
@@ -9,4 +12,15 @@ async def run_manual_tests():
     await openai_tests()
 
 
-__all__ = ["openai", "message", "run_manual_tests"]
+__all__ = [
+    "AnthropicModel",
+    "Content",
+    "Message",
+    "Model",
+    "OpenAIModel",
+    "Reasoning",
+    "Response",
+    "ToolCall",
+    "ToolResult",
+    "run_manual_tests",
+]

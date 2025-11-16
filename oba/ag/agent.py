@@ -5,12 +5,11 @@ from attrs import define
 
 from oba.ag.common import Usage
 from oba.ag.memory import Memory
-from oba.ag.models.message import Content, Message, ToolCall, ToolResult
-from oba.ag.models.model import Model
+from oba.ag.models import Content, Message, Model, ToolCall, ToolResult
 from oba.ag.tool import Tool, ToolCallable
 
 
-@define
+@define(slots=True)
 class Response:
     session_id: str
     model_id: str
