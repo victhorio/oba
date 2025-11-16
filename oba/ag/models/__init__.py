@@ -1,5 +1,5 @@
 from .anthropic import AnthropicModel
-from .message import Content, Message, Reasoning, ToolCall, ToolResult
+from .message import Content, Message, ModelID, Reasoning, ToolCall, ToolResult
 from .model import Model, Response
 from .openai import OpenAIModel
 
@@ -17,6 +17,7 @@ __all__ = [
     "Content",
     "Message",
     "Model",
+    "ModelID",
     "OpenAIModel",
     "Reasoning",
     "Response",

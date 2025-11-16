@@ -1,12 +1,8 @@
-oba
-===
+# oba
 
-If our Obsidian vault is our second brain, why not use it to power an agent?
+Simple terminal AI assistant with access to the Obsidian vault.
 
-The idea behind `oba` is to have a TUI-based agent that can interact with you and the Obsidian vault, and should be able to help with:
+For now, mostly for playing with things.
 
-1. Retrieving information from the vault and help you remember things from it in a natural way
-2. Help you clean up notes and refactor them
-3. Help you create new notes based on conversations
-
-For now it does nothing though, so let's see where this goes.
+See `./oba/ag` for the "internal" framework library for interfacing with LLM APIs (no frameworks
+and client libs used, also for the purposes of playing around).
