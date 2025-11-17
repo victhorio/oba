@@ -8,9 +8,9 @@ class FileContent(BaseModel):
     contents: str
 
 
-def get_recent_dailies(vault_path_str: str, n: int = 3) -> list[FileContent]:
-    if n <= 0:
-        return []
+def get_recent_dailies(vault_path_str: str, num_recent_notes: int = 3) -> str:
+    if num_recent_notes <= 0:
+        return "[system message: no recent daily notes available]"
 
     vault_path = Path(vault_path_str)
     if not vault_path.is_dir():
@@ -19,7 +19,7 @@ def get_recent_dailies(vault_path_str: str, n: int = 3) -> list[FileContent]:
     daily_folder = _get_daily_folder(vault_path)
     base_path_daily = daily_folder
     daily_entries = sorted(p for p in base_path_daily.iterdir() if p.is_file())
-    recent_files_paths = daily_entries[-n:]
+    recent_files_paths = daily_entries[-num_recent_notes:]
 
     recent_files: list[FileContent] = list()
     for file_path in recent_files_paths:
@@ -28,13 +28,30 @@ def get_recent_dailies(vault_path_str: str, n: int = 3) -> list[FileContent]:
         fc = FileContent(file_name=file_path.name, contents=contents)
         recent_files.append(fc)
 
-    return recent_files
+    return format_notes(recent_files)
+
+
+def get_agents_md(vault_path_str: str) -> str:
+    vault_path = Path(vault_path_str)
+    if not vault_path.is_dir():
+        raise ValueError(f"Vault path '{vault_path}' is not a directory")
+
+    agents_md = vault_path / "agents.md"
+    if not agents_md.is_file():
+        return "[system message: no AGENTS.md file found in repository]"
+
+    with open(agents_md, "r", encoding="utf-8") as f:
+        return f.read()
 
 
 def format_notes(notes: list[FileContent]) -> str:
     template = "<note>\n<name>{name}</name>\n<contents>\n{contents}\n</contents>\n</note>"
     return "\n\n".join(
-        template.format(name=note.file_name, contents=note.contents) for note in notes
+        template.format(
+            name=note.file_name,
+            contents=note.contents,
+        )
+        for note in notes
     )
 
 
