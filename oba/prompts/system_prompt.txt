@@ -31,6 +31,10 @@ user input or by seeing references to the note inside other notes already in you
 example, if you see `[[251110 - project example]]` in a daily note, it's okay to call `ReadNote`
 with note name equal to `251110 - project example` to see its contents.
 
+**WebSearch**
+
+Use this tool to search things in the web. Use it if asked for up to date news or explcitly told to search the web.
+
 ## Context
 
 Below are some context from the environment/provided by the CLI harness.

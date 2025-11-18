@@ -1,4 +1,7 @@
+import asyncio
+import inspect
 import uuid
+from typing import Coroutine
 
 import httpx
 from attrs import define
@@ -104,10 +107,11 @@ class Agent:
                 for tc in response.tool_calls:
                     full_text_response.append(f"[Tool call: {tc.name}]")
 
-            tool_results = [
+            tool_call_coros = [
                 self.tool_call(tc, return_error_strings=tool_calls_safe)
                 for tc in response.tool_calls
             ]
+            tool_results = await asyncio.gather(*tool_call_coros)
 
             messages_new.extend(tool_results)
 
@@ -125,7 +129,7 @@ class Agent:
             content="\n\n".join(full_text_response),
         )
 
-    def tool_call(
+    async def tool_call(
         self,
         tool_call: ToolCall,
         return_error_strings: bool,
@@ -135,12 +139,17 @@ class Agent:
 
         callable = self.callables[tool_call.name]
         try:
-            output = callable(**tool_call.parsed_args)
+            output: str | Coroutine[None, None, str] = callable(**tool_call.parsed_args)
+            if inspect.iscoroutine(output):
+                output = await output
         except Exception as exc:
             if return_error_strings:
                 output = f"[Tool '{tool_call.name}' call failed: {exc.__class__.__name__} {exc}]"
             else:
                 raise RuntimeError(f"Tool '{tool_call.name}' call failed") from exc
+
+        if not isinstance(output, str):
+            raise ValueError(f"Tool '{tool_call.name}' call returned non-string output")
 
         return ToolResult(
             call_id=tool_call.call_id,

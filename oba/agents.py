@@ -1,16 +1,18 @@
 from datetime import date
 from functools import partial
 
+import httpx
 from pydantic import BaseModel, Field
 
 from oba import prompts, vault
 from oba.ag import Agent, Tool
 from oba.ag.memory import EphemeralMemory
 from oba.ag.models import OpenAIModel
+from oba.ag.tools import create_web_search_tool
 from oba.configs import Config
 
 
-def new(config: Config) -> Agent:
+def new(config: Config, client: httpx.AsyncClient) -> Agent:
     recent_dailies = vault.get_recent_dailies(config.vault_path)
 
     try:
@@ -36,8 +38,10 @@ def new(config: Config) -> Agent:
         memory=EphemeralMemory(),
         system_prompt=system_prompt,
         tools=[
-            get_read_note_tool(config.vault_path),
+            create_read_note_tool(config.vault_path),
+            create_web_search_tool(client),
         ],
+        client=client,
     )
 
 
@@ -59,6 +63,6 @@ class ReadNote(BaseModel):
     )
 
 
-def get_read_note_tool(vault_path: str) -> Tool:
+def create_read_note_tool(vault_path: str) -> Tool:
     callable = partial(vault.read_note, vault_path)
     return Tool(spec=ReadNote, callable=callable)

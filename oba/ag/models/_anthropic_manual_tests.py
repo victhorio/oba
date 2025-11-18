@@ -11,7 +11,7 @@ from oba.ag.models.model import Response, StructuredModelT
 
 
 async def run_manual_tests() -> None:
-    test_utils.print_header("Anthropic Model Tests")
+    test_utils.print_header("Anthropic Model")
 
     async with httpx.AsyncClient() as c:
         costs = await asyncio.gather(

@@ -1,9 +1,9 @@
-from typing import Callable
+from typing import Callable, Coroutine
 
 from attrs import define
 from pydantic import BaseModel
 
-ToolCallable = Callable[..., str]
+ToolCallable = Callable[..., str] | Callable[..., Coroutine[None, None, str]]
 
 
 @define
