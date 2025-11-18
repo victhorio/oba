@@ -1,3 +1,5 @@
+import os
+from functools import cache
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -31,19 +33,6 @@ def get_recent_dailies(vault_path_str: str, num_recent_notes: int = 3) -> str:
     return format_notes(recent_files)
 
 
-def get_agents_md(vault_path_str: str) -> str:
-    vault_path = Path(vault_path_str)
-    if not vault_path.is_dir():
-        raise ValueError(f"Vault path '{vault_path}' is not a directory")
-
-    agents_md = vault_path / "agents.md"
-    if not agents_md.is_file():
-        return "[system message: no AGENTS.md file found in repository]"
-
-    with open(agents_md, "r", encoding="utf-8") as f:
-        return f.read()
-
-
 def format_notes(notes: list[FileContent]) -> str:
     template = "<note>\n<name>{name}</name>\n<contents>\n{contents}\n</contents>\n</note>"
     return "\n\n".join(
@@ -62,3 +51,32 @@ def _get_daily_folder(vault_path: Path) -> Path:
     if len(matches) > 1:
         raise RuntimeError(f"found multiple potential matches for daily folder in vault: {matches}")
     return matches[0]
+
+
+def read_note(vault_path: str, note_name: str) -> str:
+    notes_index = _build_notes_index(vault_path)
+    if note_name not in notes_index:
+        raise FileNotFoundError(f"note '{note_name}' not found")
+
+    with open(notes_index[note_name], "r") as f:
+        return f.read()
+
+
+@cache
+def _build_notes_index(vault_path: str) -> dict[str, str]:
+    """
+    Builds a map of {note name -> note file path} for the given vault.
+    """
+
+    # TODO: handle note name disambiguation the same way Obisidian does
+    index: dict[str, str] = dict()
+
+    for root, _, files in os.walk(vault_path):
+        for file in files:
+            if file.endswith(".md"):
+                if file in index:
+                    raise RuntimeError(f"found two notes with the same name: {file}, fix the code")
+                filename = file[:-3]
+                index[filename] = os.path.join(root, file)
+
+    return index
