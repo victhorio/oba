@@ -5,6 +5,11 @@ from typing import Literal
 from uuid import uuid4
 
 import httpx
+from rich import box
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.padding import Padding
+from rich.table import Table
 
 from . import agents, configs
 
@@ -21,6 +26,8 @@ def main() -> int:
 
 
 async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
+    console = Console(highlight=False)
+
     async with httpx.AsyncClient() as client:
         config = configs.load()
         agent = agents.new(config, model, client)
@@ -30,14 +37,14 @@ async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
 
         session_id = str(uuid4())
 
-        print(f"{_ANSI_GREY}Using model: {agent.model.model_id}\n{_ANSI_RESET}")
+        console.print(f"[bold][white]Using model:[/white] {agent.model.model_id}[/bold]\n")
 
         while True:
             try:
-                query = input(f"{_ANSI_BOLD}> ")
-                print(_ANSI_RESET, end="\n\n")
+                console.print("[bold yellow]> [/bold yellow]", end="")
+                query = input("\x1b[33m")
+                print("\x1b[0m")
             except (EOFError, KeyboardInterrupt):
-                print(end="", flush=True)
                 break
 
             if not query.strip():
@@ -48,24 +55,21 @@ async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
             tic = time.perf_counter()
             response = await agent.run(input=query, session_id=session_id)
             toc = time.perf_counter() - tic
-            print(response.content, end="\n")
-            print(
-                f"{_ANSI_GREY}"
-                f"\tTokens:     {response.usage.input_tokens + response.usage.output_tokens:,}\n"
-                f"\tTime taken: {toc:.1f} seconds\n"
-                f"{_ANSI_RESET}",
-                end="\n\n",
-            )
+
+            response_md = Markdown(response.content)
+            console.print(response_md)
+
+            t = Table(show_header=False, box=box.MINIMAL)
+            t.add_row("Time taken", f"{toc:.1f} seconds")
+            t.add_row("Tokens", f"{response.usage.input_tokens + response.usage.output_tokens:,}")
+            console.print(Padding.indent(t, 8), style="white")
 
         usage = agent.memory.get_usage(session_id)
 
-    print(f"\n{_ANSI_BOLD}Session summary:{_ANSI_RESET}")
-    print(f"\tInput tokens: {usage.input_tokens:,}\tOutput tokens: {usage.output_tokens:,}")
-    print(f"\tTotal cost: ${usage.total_cost:.3f}")
+    t = Table(title="Session stats", show_header=False, box=box.MINIMAL)
+    t.add_row("Input tokens", f"{usage.input_tokens:,}")
+    t.add_row("Output tokens", f"{usage.output_tokens:,}")
+    t.add_row("Total cost", f"${usage.total_cost:.3f}", style="bright_white")
+    console.print(t, style="white")
 
     return 0
-
-
-_ANSI_GREY = "\033[90m"
-_ANSI_BOLD = "\033[1m"
-_ANSI_RESET = "\033[0m"

@@ -8,6 +8,7 @@ dependencies = [
     "attrs>=25.4.0",
     "httpx>=0.28.1",
     "pydantic>=2.12.0",
+    "rich>=14.2.0",
 ]
 
 [project.scripts]
