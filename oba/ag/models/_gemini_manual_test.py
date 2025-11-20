@@ -8,10 +8,10 @@ from attrs import asdict
 from pydantic import BaseModel, ConfigDict, Field
 
 import oba.ag._manual_test_utils as test_utils
-from oba.ag import Tool
 from oba.ag.models.completions import CompletionsModel
 from oba.ag.models.message import Content, Message, ToolResult
 from oba.ag.models.model import Response, StructuredModelT
+from oba.ag.tool import Tool
 
 
 async def run_manual_tests() -> None:

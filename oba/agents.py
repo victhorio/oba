@@ -1,5 +1,6 @@
 from datetime import date
 from functools import partial
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, Field
@@ -7,12 +8,16 @@ from pydantic import BaseModel, Field
 from oba import prompts, vault
 from oba.ag import Agent, Tool
 from oba.ag.memory import EphemeralMemory
-from oba.ag.models import OpenAIModel
+from oba.ag.models import AnthropicModel, CompletionsModel, OpenAIModel
 from oba.ag.tools import create_web_search_tool
 from oba.configs import Config
 
 
-def new(config: Config, client: httpx.AsyncClient) -> Agent:
+def new(
+    config: Config,
+    model_family: Literal["gpt", "gemini", "claude"],
+    client: httpx.AsyncClient,
+) -> Agent:
     recent_dailies = vault.get_recent_dailies(config.vault_path)
 
     try:
@@ -28,10 +33,24 @@ def new(config: Config, client: httpx.AsyncClient) -> Agent:
         recent_dailies=recent_dailies,
     )
 
-    model = OpenAIModel(
-        model_id=config.model_id,
-        reasoning_effort="low",
-    )
+    if model_family == "gpt":
+        model = OpenAIModel(
+            model_id="gpt-5.1",
+            reasoning_effort="low",
+        )
+    elif model_family == "claude":
+        model = AnthropicModel(
+            model_id="claude-sonnet-4-5",
+            reasoning_effort=2_048,
+        )
+    elif model_family == "gemini":
+        model = CompletionsModel(
+            model_id="gemini-3-pro-preview",
+            reasoning_effort="low",
+        )
+    else:
+        # this line should be greyed out by lsp due to exhaustive match
+        raise AssertionError(f"Unknown model family: {model_family}")
 
     return Agent(
         model=model,

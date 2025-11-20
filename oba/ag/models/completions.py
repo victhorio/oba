@@ -3,11 +3,10 @@ from typing import Any, Literal, override
 
 from httpx import AsyncClient
 
-from oba.ag import Tool
-from oba.ag.models import Response
 from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
 from oba.ag.models.message import Content, Message, ModelID, Reasoning, ToolCall, ToolResult, Usage
-from oba.ag.models.model import Model, StructuredModelT, ToolChoice
+from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
+from oba.ag.tool import Tool
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 

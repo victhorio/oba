@@ -1,4 +1,5 @@
 from .anthropic import AnthropicModel
+from .completions import CompletionsModel
 from .message import Content, Message, ModelID, Reasoning, ToolCall, ToolResult
 from .model import Model, Response
 from .openai import OpenAIModel
@@ -16,6 +17,7 @@ async def run_manual_tests():
 
 __all__ = [
     "AnthropicModel",
+    "CompletionsModel",
     "Content",
     "Message",
     "Model",

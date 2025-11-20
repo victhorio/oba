@@ -1,4 +1,7 @@
+import argparse
 import asyncio
+import time
+from typing import Literal
 from uuid import uuid4
 
 import httpx
@@ -7,20 +10,27 @@ from . import agents, configs
 
 
 def main() -> int:
-    return asyncio.run(repl())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default="gpt")
+    args = parser.parse_args()
+
+    model = args.model
+    assert model in ("gpt", "gemini", "claude")
+
+    return asyncio.run(repl(model))
 
 
-async def repl() -> int:
+async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
     async with httpx.AsyncClient() as client:
         config = configs.load()
-        agent = agents.new(config, client)
+        agent = agents.new(config, model, client)
         # seeing as memory is typed as optional, since we plan to use it we need to assert it
         # for the lsp to calm down about accesses to it
         assert agent.memory
 
         session_id = str(uuid4())
 
-        print(f"{_ANSI_GREY}Using model: {config.model_id}\n{_ANSI_RESET}")
+        print(f"{_ANSI_GREY}Using model: {agent.model.model_id}\n{_ANSI_RESET}")
 
         while True:
             try:
@@ -35,10 +45,15 @@ async def repl() -> int:
             if query.lower() in ("exit", "quit", ":q"):
                 break
 
+            tic = time.perf_counter()
             response = await agent.run(input=query, session_id=session_id)
+            toc = time.perf_counter() - tic
             print(response.content, end="\n")
             print(
-                f"\tTokens: {response.usage.input_tokens + response.usage.output_tokens:,}",
+                f"{_ANSI_GREY}"
+                f"\tTokens:     {response.usage.input_tokens + response.usage.output_tokens:,}\n"
+                f"\tTime taken: {toc:.1f} seconds\n"
+                f"{_ANSI_RESET}",
                 end="\n\n",
             )
 

@@ -6,15 +6,12 @@ from pathlib import Path
 
 from attrs import asdict, define
 
-from oba.ag.models import ModelID
-
 CONFIG_PATH = Path.home() / ".config" / "oba" / "settings.json"
 
 
 @define(slots=True)
 class Config:
     user_name: str
-    model_id: ModelID
     vault_path: str
 
 
@@ -74,7 +71,6 @@ def _setup_interactive() -> Config:
 
     return Config(
         user_name=name,
-        model_id="gpt-5-mini",
         vault_path=path.as_posix(),
     )
 
