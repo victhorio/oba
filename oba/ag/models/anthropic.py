@@ -50,7 +50,7 @@ class AnthropicModel(Model):
         max_output_tokens: int | None = None,
         structured_output: type[StructuredModelT] | None = None,
         tools: list[Tool] | None = None,
-        tool_choice: ToolChoice | None = None,
+        tool_choice: ToolChoice | None = "auto",
         parallel_tool_calls: bool = False,
         timeout: int = DEFAULT_TIMEOUT,
         debug: bool = False,
@@ -58,9 +58,6 @@ class AnthropicModel(Model):
         if structured_output:
             # TODO: under the beta header `structured-outputs-2025-11-13` it's supported now
             raise ValueError("anthropic does not support structured outputs")
-        if tools:
-            # TODO
-            raise NotImplementedError("not implemented yet")
 
         max_output_tokens = max_output_tokens or self.max_output_tokens
 
@@ -80,6 +77,18 @@ class AnthropicModel(Model):
             payload["thinking"] = {"type": "enabled", "budget_tokens": self.reasoning_effort}
         else:
             payload["thinking"] = {"type": "disabled"}
+
+        if tools:
+            payload["tools"] = [_parse_tool(tool) for tool in tools]
+
+            if tool_choice:
+                tool_choice_payload: dict[str, object] = {"type": tool_choice}
+                if tool_choice != "none" and not parallel_tool_calls:
+                    tool_choice_payload["disable_parallel_tool_use"] = True
+                payload["tool_choice"] = tool_choice_payload
+
+            else:
+                raise ValueError("tool_choice cannot be None for AnthropicModel")
 
         if system_prompt:
             payload["system"] = system_prompt
@@ -245,6 +254,21 @@ def _transform_message_to_payload(msg: Message) -> dict[str, object]:
     # remember to save the result before returning
     msg._provider_payload_cache[_ANTHROPIC_PROVIDER_ID] = payload
     return payload
+
+
+def _parse_tool(tool: Tool) -> dict[str, object]:
+    # TODO: let's have some caching not to reparse it everytime?
+    spec_schema = tool.spec.model_json_schema()
+
+    return {
+        "name": spec_schema["title"],
+        "description": spec_schema["description"],
+        "input_schema": {
+            "type": "object",
+            "properties": spec_schema["properties"],
+            "required": spec_schema["required"],
+        },
+    }
 
 
 _ANTHROPIC_PROVIDER_ID = "anthropic"
