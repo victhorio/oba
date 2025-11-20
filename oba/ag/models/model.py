@@ -118,6 +118,7 @@ class Response(Generic[StructuredModelT]):
 
 
 # TODO: add cache WRITE costs
+# TODO: add variable cost when input tokens >= 200k (gemini/claude)
 # Model ID -> (Input cost, Cached input cost, Output cost) per 1M tokens
 _MODEL_COSTS: dict[ModelID, tuple[float, float, float]] = {
     "gpt-4.1": (2.00, 0.50, 8.00),
@@ -128,4 +129,7 @@ _MODEL_COSTS: dict[ModelID, tuple[float, float, float]] = {
     "claude-haiku-4-5": (1.00, 0.100, 5.00),
     "claude-sonnet-4-5": (3.00, 0.300, 15.00),
     "claude-opus-4-1": (15.00, 1.500, 75.00),
+    "gemini-2.5-flash": (0.30, 0.030, 1.00),
+    "gemini-2.5-pro": (1.25, 0.125, 10.00),
+    "gemini-3-pro-preview": (2.00, 0.020, 12.00),
 }

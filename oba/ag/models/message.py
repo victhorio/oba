@@ -13,6 +13,9 @@ ModelID = Literal[
     "claude-haiku-4-5",
     "claude-sonnet-4-5",
     "claude-opus-4-1",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-3-pro-preview",
 ]
 
 
