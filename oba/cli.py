@@ -7,9 +7,12 @@ from uuid import uuid4
 import httpx
 from rich import box
 from rich.console import Console
+from rich.live import Live
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.table import Table
+
+from oba.ag.models import ToolCall
 
 from . import agents, configs
 
@@ -53,11 +56,31 @@ async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
                 break
 
             tic = time.perf_counter()
-            response = await agent.run(input=query, session_id=session_id)
-            toc = time.perf_counter() - tic
 
-            response_md = Markdown(response.content)
-            console.print(response_md)
+            if model != "gpt":
+                response = await agent.run(input=query, session_id=session_id)
+                response_md = Markdown(response.content)
+                console.print(response_md)
+            else:
+                with Live("", console=console, vertical_overflow="visible") as live:
+                    full_response = [""]
+
+                    def streamer(part: ToolCall | str) -> None:
+                        if isinstance(part, ToolCall):
+                            delta = f"\n[Tool Call: {part.name}]\n\n"
+                        else:
+                            delta = part
+
+                        full_response[0] += delta
+                        live.update(Markdown(full_response[0]))
+
+                    response = await agent.stream(
+                        input=query,
+                        callback=streamer,
+                        session_id=session_id,
+                    )
+
+            toc = time.perf_counter() - tic
 
             t = Table(show_header=False, box=box.MINIMAL)
             t.add_row("Time taken", f"{toc:.1f} seconds")

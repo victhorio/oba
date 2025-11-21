@@ -1,14 +1,15 @@
 import asyncio
 import inspect
 import uuid
-from typing import Coroutine
+from typing import Callable, Coroutine
 
 import httpx
 from attrs import define
 
 from oba.ag.common import Usage
 from oba.ag.memory import Memory
-from oba.ag.models import Content, Message, Model, ToolCall, ToolResult
+from oba.ag.models import Content, Message, Model, OpenAIModel, ToolCall, ToolResult
+from oba.ag.models import Response as ModelResponse
 from oba.ag.tool import Tool, ToolCallable
 
 
@@ -47,9 +48,10 @@ class Agent:
             self.tools = tools
             self.callables = {tool.spec.__name__: tool.callable for tool in tools}
 
-    async def run(
+    async def stream(
         self,
         input: str,
+        callback: Callable[[str | ToolCall], None],
         *,
         model: Model | None = None,
         timeout_api: int = 60,
@@ -59,14 +61,17 @@ class Agent:
         session_id: str | None = None,
         debug: bool = False,
     ) -> Response:
-        model_ = model or self.model
-        session_id_ = session_id or str(uuid.uuid4())
+        model = model or self.model
+        # only OpenAIModel has stream method for now
+        assert isinstance(model, OpenAIModel)
+
+        session_id = session_id or str(uuid.uuid4())
 
         messages_prefix: list[Message] = []
         if self.system_prompt:
             messages_prefix.append(self.system_prompt)
         if self.memory:
-            messages_prefix.extend(self.memory.get_messages(session_id_))
+            messages_prefix.extend(self.memory.get_messages(session_id))
 
         messages_new: list[Message] = [Content(role="user", text=input)]
 
@@ -79,7 +84,96 @@ class Agent:
             is_last_turn = turn == tool_calls_max_turns - 1
             tool_choice = "auto" if not is_last_turn else "none"
 
-            response = await model_.generate(
+            async for part in model.stream(
+                messages=messages_prefix + messages_new,
+                client=self.client,
+                tools=self.tools,
+                tool_choice=tool_choice,
+                timeout=timeout_api,
+                debug=debug,
+            ):
+                if isinstance(part, (str, ToolCall)):
+                    callback(part)
+                elif isinstance(part, ModelResponse):
+                    response = part
+                    break
+            else:
+                raise AssertionError("did not receive a model response")
+
+            usage = usage.acc(
+                Usage(
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    total_cost=response.dollar_cost,
+                )
+            )
+
+            messages_new.extend(response.messages)
+            if response.content:
+                full_text_response.append(response.content.text)
+
+            if not response.tool_calls:
+                break
+
+            if tool_calls_included_in_content:
+                for tc in response.tool_calls:
+                    full_text_response.append(f"[Tool call: {tc.name}]")
+
+            tool_call_coros = [
+                self.tool_call(tc, return_error_strings=tool_calls_safe)
+                for tc in response.tool_calls
+            ]
+            tool_results = await asyncio.gather(*tool_call_coros)
+
+            messages_new.extend(tool_results)
+
+        if self.memory:
+            self.memory.extend(
+                session_id=session_id,
+                messages=messages_new,
+                usage=usage,
+            )
+
+        return Response(
+            session_id=session_id,
+            model_id=model.model_id,
+            usage=usage,
+            content="\n\n".join(full_text_response),
+        )
+
+    async def run(
+        self,
+        input: str,
+        *,
+        model: Model | None = None,
+        timeout_api: int = 60,
+        tool_calls_safe: bool = True,
+        tool_calls_max_turns: int = 3,
+        tool_calls_included_in_content: bool = True,
+        session_id: str | None = None,
+        debug: bool = False,
+    ) -> Response:
+        model = model or self.model
+        session_id = session_id or str(uuid.uuid4())
+
+        messages_prefix: list[Message] = []
+        if self.system_prompt:
+            messages_prefix.append(self.system_prompt)
+        if self.memory:
+            messages_prefix.extend(self.memory.get_messages(session_id))
+
+        messages_new: list[Message] = [Content(role="user", text=input)]
+
+        usage = Usage()
+        full_text_response: list[str] = list()
+
+        # since we want to allow tool_calls_max_turns, we give it 1 extra turn
+        # at the end to write a response
+        for turn in range(tool_calls_max_turns + 1):
+            is_last_turn = turn == tool_calls_max_turns - 1
+            tool_choice = "auto" if not is_last_turn else "none"
+
+            response = await model.generate(
                 client=self.client,
                 messages=messages_prefix + messages_new,
                 tools=self.tools,
@@ -117,14 +211,14 @@ class Agent:
 
         if self.memory:
             self.memory.extend(
-                session_id=session_id_,
+                session_id=session_id,
                 messages=messages_new,
                 usage=usage,
             )
 
         return Response(
-            session_id=session_id_,
-            model_id=model_.model_id,
+            session_id=session_id,
+            model_id=model.model_id,
             usage=usage,
             content="\n\n".join(full_text_response),
         )

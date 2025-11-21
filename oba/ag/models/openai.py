@@ -1,5 +1,6 @@
+import json
 import os
-from typing import Any, override
+from typing import Any, AsyncIterator, override
 
 from httpx import AsyncClient
 from typing_extensions import Literal
@@ -41,6 +42,105 @@ class OpenAIModel(Model):
         self.api_key: str = api_key or os.getenv("OPENAI_API_KEY", "")
         if not self.api_key:
             raise ValueError("either pass api_key or set OPENAI_API_KEY in env")
+
+    async def stream(
+        self,
+        messages: list[Message],
+        *,
+        client: AsyncClient,
+        max_output_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: ToolChoice | None = None,
+        parallel_tool_calls: bool = False,
+        timeout: int = DEFAULT_TIMEOUT,
+        debug: bool = False,
+    ) -> AsyncIterator[str | ToolCall | Response]:
+        """
+        Yields:
+        - text deltas as strings as soon as they happen
+        - tool calls as soon as they are completed
+        - the final parsed response as the last item
+        """
+
+        max_output_tokens = max_output_tokens or self.max_output_tokens
+
+        payload = {
+            "input": [_transform_message_to_payload(m) for m in messages],
+            "model": self.model_id,
+            "max_output_tokens": max_output_tokens,
+            "reasoning": {"effort": self.reasoning_effort},
+            # NOTE: We do not want to rely on OpenAI for storing any messages. However, since
+            #       we are not allowed to have the reasoning content, and OpenAI reasoning models
+            #       keep their reasoning as part of their context, we need to ask for the API to
+            #       include encrypted reasoning content in their response. This means we'll be
+            #       able to store it and reuse it later.
+            "store": False,
+            "include": [
+                "reasoning.encrypted_content",
+            ],
+            "stream": True,
+        }
+
+        if tools:
+            payload["tools"] = [_parse_tool(tool) for tool in tools]
+            payload["parallel_tool_calls"] = parallel_tool_calls
+            if tool_choice:
+                payload["tool_choice"] = tool_choice
+
+        if debug:
+            import pprint
+
+            print("--- Sent payload to OpenAI ---")
+            pprint.pp(payload, width=110)
+            print("------------------------------")
+
+        async with client.stream(
+            "POST",
+            _OPENAI_GENERATION_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+            json=payload,
+            timeout=timeout,
+        ) as response:
+            if not response.is_success:
+                print("\033[31;1mERROR:\033[0m: API returned an error")
+                try:
+                    import pprint
+
+                    pprint.pp(response.json(), width=110)
+                except Exception:
+                    pass
+                response.raise_for_status()
+
+            async for line in response.aiter_lines():
+                if debug:
+                    print("-- line --")
+                    print(line)
+                    print("-- ---- --")
+
+                if not line or line.startswith("event:"):
+                    continue
+
+                if not line.startswith("data: "):
+                    raise AssertionError("expected all lines to start with `data :` at this point")
+
+                data = json.loads(line.replace("data: ", ""))
+                event_type = data["type"]
+
+                if event_type == "response.output_text.delta":
+                    yield data["delta"]
+                elif event_type == "response.output_item.done":
+                    # we want to yield tool calls early so the caller can print them out
+                    if data["item"]["type"] == "function_call":
+                        yield ToolCall(
+                            call_id=data["item"]["call_id"],
+                            name=data["item"]["name"],
+                            args=data["item"]["arguments"],
+                        )
+                elif event_type == "response.completed":
+                    yield self._parse_response(data["response"], structure=None)
 
     @override
     async def generate(
@@ -98,7 +198,7 @@ class OpenAIModel(Model):
             print("------------------------------")
 
         response = await client.post(
-            "https://api.openai.com/v1/responses",
+            _OPENAI_GENERATION_URL,
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}",
@@ -277,6 +377,7 @@ def _transform_message_to_payload(msg: Message) -> dict[str, object]:
 
 
 _OPENAI_PROVIDER_ID = "openai"
+_OPENAI_GENERATION_URL = "https://api.openai.com/v1/responses"
 _OPENAI_MODEL_IDS: list[ModelID] = [
     "gpt-4.1",
     "gpt-5-nano",
