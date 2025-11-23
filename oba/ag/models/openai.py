@@ -124,7 +124,7 @@ class OpenAIModel(Model):
                     continue
 
                 if not line.startswith("data: "):
-                    raise AssertionError("expected all lines to start with `data :` at this point")
+                    raise AssertionError("expected all lines to start with `data:` at this point")
 
                 data = json.loads(line.replace("data: ", ""))
                 event_type = data["type"]
@@ -139,6 +139,8 @@ class OpenAIModel(Model):
                             name=data["item"]["name"],
                             args=data["item"]["arguments"],
                         )
+                elif event_type in _OPENAI_STREAM_EVENT_TYPES:
+                    raise RuntimeError(_format_stream_error(event_type, data))
                 elif event_type == "response.completed":
                     yield self._parse_response(data["response"], structure=None)
 
@@ -332,6 +334,25 @@ def _parse_tool(tool: Tool) -> dict[str, object]:
     }
 
 
+def _format_stream_error(event_type: str, data: dict[str, Any]) -> str:
+    assert event_type in _OPENAI_STREAM_EVENT_TYPES
+
+    if event_type == "response.failed":
+        error_message = data.get("error", {}).get("message", "ag: unknown error")
+        return f"response.failed: {error_message}"
+    if event_type == "response.incomplete":
+        incomplete_details = data.get("incomplete_details", {}).get("reason", "ag: unknown reason")
+        return f"response.incomplete: {incomplete_details}"
+    if event_type == "response.refusal.done":
+        refusal = data.get("refusal", "ag: unknown refusal")
+        return f"response.refusal.done: {refusal}"
+    if event_type == "error":
+        message = data.get("message", "ag: unknown error")
+        return f"error: {message}"
+
+    assert False, "unreachable"
+
+
 def _transform_message_to_payload(msg: Message) -> dict[str, object]:
     payload: dict[str, object]
 
@@ -385,3 +406,10 @@ _OPENAI_MODEL_IDS: list[ModelID] = [
     "gpt-5",
     "gpt-5.1",
 ]
+
+_OPENAI_STREAM_EVENT_TYPES: tuple[str, ...] = (
+    "response.failed",
+    "response.incomplete",
+    "response.refusal.done",
+    "error",
+)
