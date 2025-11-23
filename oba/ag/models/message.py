@@ -19,7 +19,7 @@ ModelID = Literal[
 ]
 
 
-@define(slots=True)
+@define
 class MessageBase:
     _provider_payload_cache: dict[str, dict[str, object]] = field(init=False, factory=dict)
     """
@@ -33,7 +33,7 @@ class MessageBase:
     """
 
 
-@define(slots=True)
+@define
 class Reasoning(MessageBase):
     # NOTE: We need to store reasoning blocks from OpenAI to maintain it in context,
     #       but they only accept returning encrypted reasoning contents.
@@ -41,14 +41,14 @@ class Reasoning(MessageBase):
     content: str = field(default="")
 
 
-@define(slots=True)
+@define
 class Content(MessageBase):
     role: Role
     # TODO: support non text inputs as well
     text: str
 
 
-@define(slots=True)
+@define
 class ToolCall(MessageBase):
     call_id: str
     name: str
@@ -62,13 +62,13 @@ class ToolCall(MessageBase):
             self.parsed_args = json.loads(self.args)
 
 
-@define(slots=True)
+@define
 class ToolResult(MessageBase):
     call_id: str
     result: str
 
 
-@define(slots=True)
+@define
 class Usage:
     input_tokens: int
     output_tokens: int

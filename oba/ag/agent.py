@@ -13,7 +13,7 @@ from oba.ag.models import Response as ModelResponse
 from oba.ag.tool import Tool, ToolCallable
 
 
-@define(slots=True)
+@define
 class Response:
     session_id: str
     model_id: str

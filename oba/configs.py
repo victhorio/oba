@@ -9,7 +9,7 @@ from attrs import asdict, define
 CONFIG_PATH = Path.home() / ".config" / "oba" / "settings.json"
 
 
-@define(slots=True)
+@define
 class Config:
     user_name: str
     vault_path: str

@@ -38,7 +38,7 @@ class EphemeralMemory(Memory):
         self._db[session_id].usage = self._db[session_id].usage.acc(usage)
 
 
-@define(slots=True)
+@define
 class SessionInfo:
     messages: list[Message]
     usage: Usage

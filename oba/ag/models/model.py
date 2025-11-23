@@ -79,7 +79,7 @@ class Model(ABC):
         return (in_cost + cin_cost + out_cost) / 1e6
 
 
-@define(slots=True)
+@define
 class Response(Generic[StructuredModelT]):
     """
     A normalized Response object for Model's `generate` results, containing all relevant details
