@@ -40,7 +40,7 @@ def new(
         )
     elif model_family == "claude":
         model = AnthropicModel(
-            model_id="claude-sonnet-4-5",
+            model_id="claude-opus-4-5",
             reasoning_effort=2_048,
         )
     elif model_family == "gemini":

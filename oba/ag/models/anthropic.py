@@ -432,5 +432,5 @@ _ANTHROPIC_GENERATION_URL = "https://api.anthropic.com/v1/messages"
 _ANTHROPIC_MODEL_IDS: list[ModelID] = [
     "claude-haiku-4-5",
     "claude-sonnet-4-5",
-    "claude-opus-4-1",
+    "claude-opus-4-5",
 ]
