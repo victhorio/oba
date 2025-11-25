@@ -139,7 +139,7 @@ class OpenAIModel(Model):
                             name=data["item"]["name"],
                             args=data["item"]["arguments"],
                         )
-                elif event_type in _OPENAI_STREAM_EVENT_TYPES:
+                elif event_type in _OPENAI_STREAM_ERROR_TYPES:
                     raise RuntimeError(_format_stream_error(event_type, data))
                 elif event_type == "response.completed":
                     yield self._parse_response(data["response"], structure=None)
@@ -335,7 +335,7 @@ def _parse_tool(tool: Tool) -> dict[str, object]:
 
 
 def _format_stream_error(event_type: str, data: dict[str, Any]) -> str:
-    assert event_type in _OPENAI_STREAM_EVENT_TYPES
+    assert event_type in _OPENAI_STREAM_ERROR_TYPES
 
     if event_type == "response.failed":
         error_message = data.get("error", {}).get("message", "ag: unknown error")
@@ -407,7 +407,7 @@ _OPENAI_MODEL_IDS: list[ModelID] = [
     "gpt-5.1",
 ]
 
-_OPENAI_STREAM_EVENT_TYPES: tuple[str, ...] = (
+_OPENAI_STREAM_ERROR_TYPES: tuple[str, ...] = (
     "response.failed",
     "response.incomplete",
     "response.refusal.done",

@@ -57,7 +57,7 @@ async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
 
             tic = time.perf_counter()
 
-            if model != "gpt":
+            if model == "gemini":
                 response = await agent.run(input=query, session_id=session_id)
                 response_md = Markdown(response.content)
                 console.print(response_md)

@@ -8,7 +8,7 @@ from attrs import define
 
 from oba.ag.common import Usage
 from oba.ag.memory import Memory
-from oba.ag.models import Content, Message, Model, OpenAIModel, ToolCall, ToolResult
+from oba.ag.models import AnthropicModel, Content, Message, Model, OpenAIModel, ToolCall, ToolResult
 from oba.ag.models import Response as ModelResponse
 from oba.ag.tool import Tool, ToolCallable
 
@@ -62,8 +62,8 @@ class Agent:
         debug: bool = False,
     ) -> Response:
         model = model or self.model
-        # only OpenAIModel has stream method for now
-        assert isinstance(model, OpenAIModel)
+        # only OpenAI and Anthropic have the .stream method
+        assert isinstance(model, (OpenAIModel, AnthropicModel))
 
         session_id = session_id or str(uuid.uuid4())
 
