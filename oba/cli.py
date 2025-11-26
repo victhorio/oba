@@ -67,12 +67,12 @@ async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
 
                     def streamer(part: ToolCall | str) -> None:
                         if isinstance(part, ToolCall):
-                            delta = f"\n[Tool Call: {part.name}]\n\n"
+                            delta = _tool_call_delta(part)
                         else:
                             delta = part
 
                         full_response[0] += delta
-                        live.update(Markdown(full_response[0]))
+                        live.update(Markdown(markup=full_response[0]))
 
                     response = await agent.stream(
                         input=query,
@@ -96,3 +96,17 @@ async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
     console.print(t, style="white")
 
     return 0
+
+
+def _tool_call_delta(part: ToolCall) -> str:
+    prefix = f"\n```\n{part.name}(\n"
+    suffix = "\n)\n```\n\n"
+
+    lines: list[str] = []
+    for k, v in part.parsed_args.items():
+        sv = str(v)
+        if len(sv) > 80:
+            sv = sv[:80] + "..."
+        lines.append(f"    {k} = {sv}")
+
+    return prefix + "\n".join(lines) + suffix

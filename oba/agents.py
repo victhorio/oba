@@ -9,7 +9,7 @@ from oba import prompts, vault
 from oba.ag import Agent, Tool
 from oba.ag.memory import EphemeralMemory
 from oba.ag.models import AnthropicModel, CompletionsModel, OpenAIModel
-from oba.ag.tools import create_web_search_tool
+from oba.ag.tools import create_agentic_web_search_tool
 from oba.configs import Config
 
 
@@ -40,7 +40,7 @@ def new(
         )
     elif model_family == "claude":
         model = AnthropicModel(
-            model_id="claude-opus-4-5",
+            model_id="claude-sonnet-4-5",
             reasoning_effort=2_048,
         )
     elif model_family == "gemini":
@@ -58,7 +58,7 @@ def new(
         system_prompt=system_prompt,
         tools=[
             create_read_note_tool(config.vault_path),
-            create_web_search_tool(client),
+            create_agentic_web_search_tool(client),
         ],
         client=client,
     )
