@@ -43,6 +43,7 @@ class OpenAIModel(Model):
         if not self.api_key:
             raise ValueError("either pass api_key or set OPENAI_API_KEY in env")
 
+    @override
     async def stream(
         self,
         messages: list[Message],
@@ -55,13 +56,6 @@ class OpenAIModel(Model):
         timeout: int = DEFAULT_TIMEOUT,
         debug: bool = False,
     ) -> AsyncIterator[str | ToolCall | Response[Any]]:
-        """
-        Yields:
-        - text deltas as strings as soon as they happen
-        - tool calls as soon as they are completed
-        - the final parsed response as the last item
-        """
-
         max_output_tokens = max_output_tokens or self.max_output_tokens
 
         payload: dict[str, object] = {

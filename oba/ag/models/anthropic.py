@@ -42,6 +42,7 @@ class AnthropicModel(Model):
         if not self.api_key:
             raise ValueError("either pass api_key or set ANTHROPIC_API_KEY in env")
 
+    @override
     async def stream(
         self,
         messages: list[Message],

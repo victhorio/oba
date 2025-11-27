@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Generic, Literal, TypeVar
+from typing import Any, AsyncIterator, Generic, Literal, TypeVar
 
 from attrs import define
 from httpx import AsyncClient
@@ -22,6 +24,31 @@ class Model(ABC):
         self.model_id: ModelID = model_id
 
     @abstractmethod
+    def stream(
+        self,
+        messages: list[Message],
+        *,
+        client: AsyncClient,
+        max_output_tokens: int | None,
+        tools: list[Tool] | None,
+        tool_choice: ToolChoice | None,
+        parallel_tool_calls: bool | None,
+        timeout: int,
+        debug: bool,
+    ) -> AsyncIterator[str | ToolCall | Response[Any]]:
+        """
+        Streams a model response for the given `messages` history.
+        See `generate` for more details.
+
+        Yields through an async iterator:
+        - text deltas as strings as soon as they happen for content
+        - tool calls as structured objects once their full arguments are known
+        - the complete parsed response as the last item in the iterator
+        """
+
+        ...
+
+    @abstractmethod
     async def generate(
         self,
         messages: list[Message],
@@ -34,7 +61,7 @@ class Model(ABC):
         parallel_tool_calls: bool = False,
         timeout: int = 20,
         debug: bool = False,
-    ) -> "Response[StructuredModelT]":
+    ) -> Response[StructuredModelT]:
         """
         Generates a model response for the given `messages` history.
 

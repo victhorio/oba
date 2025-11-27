@@ -1,5 +1,5 @@
 import os
-from typing import Any, Literal, override
+from typing import Any, AsyncIterator, Literal, override
 
 from httpx import AsyncClient
 
@@ -37,6 +37,21 @@ class CompletionsModel(Model):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
         if not self.api_key:
             raise ValueError("either pass api_key or set GEMINI_API_KEY in env")
+
+    @override
+    def stream(
+        self,
+        messages: list[Message],
+        *,
+        client: AsyncClient,
+        max_output_tokens: int | None = None,
+        tools: list[Tool] | None = None,
+        tool_choice: ToolChoice | None = None,
+        parallel_tool_calls: bool | None = False,
+        timeout: int = DEFAULT_TIMEOUT,
+        debug: bool = False,
+    ) -> AsyncIterator[str | ToolCall | Response[Any]]:
+        raise NotImplementedError("CompletionsModel does not support streaming")
 
     @override
     async def generate(

@@ -3,7 +3,7 @@ name = "oba"
 version = "0.1.0"
 description = "An Obsidian powered agent"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "attrs>=25.4.0",
     "httpx>=0.28.1",
