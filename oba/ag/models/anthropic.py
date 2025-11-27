@@ -50,10 +50,10 @@ class AnthropicModel(Model):
         max_output_tokens: int | None = None,
         tools: list[Tool] | None = None,
         tool_choice: ToolChoice | None = "auto",
-        parallel_tool_calls: bool = False,
+        parallel_tool_calls: bool | None = False,
         timeout: int = DEFAULT_TIMEOUT,
         debug: bool = False,
-    ) -> AsyncIterator[str | ToolCall | Response]:
+    ) -> AsyncIterator[str | ToolCall | Response[Any]]:
         """
         Yields:
         - text deltas as strings as soon as they happen
@@ -69,7 +69,7 @@ class AnthropicModel(Model):
         else:
             system_prompt = None
 
-        payload = {
+        payload: dict[str, object] = {
             "messages": [_transform_message_to_payload(m) for m in messages],
             "model": self.model_id,
             "max_tokens": max_output_tokens,
@@ -124,7 +124,7 @@ class AnthropicModel(Model):
                     pass
                 response.raise_for_status()
 
-            response_json = dict()
+            response_json: dict[str, Any] = dict()
 
             async for line in response.aiter_lines():
                 if not line or line.startswith("event:"):
@@ -223,7 +223,7 @@ class AnthropicModel(Model):
         else:
             system_prompt = None
 
-        payload = {
+        payload: dict[str, object] = {
             "messages": [_transform_message_to_payload(m) for m in messages],
             "model": self.model_id,
             "max_tokens": max_output_tokens,
@@ -289,7 +289,7 @@ class AnthropicModel(Model):
     def _parse_response(
         self,
         r: dict[str, Any],
-    ) -> Response:
+    ) -> Response[Any]:
         required_keys = ("model", "content", "usage")
         for key in required_keys:
             if key not in r:
@@ -359,7 +359,7 @@ def _transform_message_to_payload(msg: Message) -> dict[str, object]:
     payload: dict[str, object]
 
     # make sure that we don't need to recompute the payload for this message
-    if payload := msg._provider_payload_cache.get(_ANTHROPIC_PROVIDER_ID, dict()):
+    if payload := msg.payload_cache.get(_ANTHROPIC_PROVIDER_ID, dict()):
         return payload
 
     if isinstance(msg, Content):
@@ -408,7 +408,7 @@ def _transform_message_to_payload(msg: Message) -> dict[str, object]:
         raise ValueError(f"receive invalid message type: {type(msg)}")
 
     # remember to save the result before returning
-    msg._provider_payload_cache[_ANTHROPIC_PROVIDER_ID] = payload
+    msg.payload_cache[_ANTHROPIC_PROVIDER_ID] = payload
     return payload
 
 

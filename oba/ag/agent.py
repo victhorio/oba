@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from typing import Callable
+from typing import Any, Callable
 
 import httpx
 from attrs import define
@@ -172,7 +172,7 @@ class Agent:
             is_last_turn = turn == tool_calls_max_turns - 1
             tool_choice = "auto" if not is_last_turn else "none"
 
-            response = await model.generate(
+            response: ModelResponse[Any] = await model.generate(
                 client=self.client,
                 messages=messages_prefix + messages_new,
                 tools=self.tools,

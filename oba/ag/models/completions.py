@@ -109,7 +109,7 @@ class CompletionsModel(Model):
     def _parse_response(
         self,
         r: dict[str, Any],
-    ) -> Response:
+    ) -> Response[Any]:
         required_keys = ("model", "choices", "usage")
         for key in required_keys:
             if key not in r:
@@ -163,7 +163,7 @@ class CompletionsModel(Model):
         payload: dict[str, object]
 
         # make sure that we don't need to recompute the payload for this message
-        if payload := msg._provider_payload_cache.get(self.base_url, dict()):
+        if payload := msg.payload_cache.get(self.base_url, dict()):
             return payload
 
         if isinstance(msg, Content):
@@ -199,7 +199,7 @@ class CompletionsModel(Model):
             # this branch should be greyed out by the LSP due to exhaustive match
             raise ValueError(f"received invalid message type: {type(msg)}")
 
-        msg._provider_payload_cache[self.base_url] = payload
+        msg.payload_cache[self.base_url] = payload
         return payload
 
 

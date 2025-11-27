@@ -1,6 +1,6 @@
 import asyncio
 import pprint
-from typing import Literal
+from typing import Any, Literal
 
 import httpx
 from attrs import asdict
@@ -40,7 +40,7 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     ]
 
     model = AnthropicModel("claude-haiku-4-5")
-    response = await model.generate(messages=messages, client=c)
+    response: Response[Any] = await model.generate(messages=messages, client=c)
     _show_response(response, "simple message")
 
     return response.dollar_cost
@@ -55,7 +55,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
     ]
 
     model = AnthropicModel("claude-haiku-4-5", reasoning_effort=1024, max_output_tokens=2048)
-    response_a = await model.generate(
+    response_a: Response[Any] = await model.generate(
         messages=messages,
         client=c,
     )
@@ -68,7 +68,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
             text="Hey, can you remind me what's my name again?",
         )
     )
-    response_b = await model.generate(
+    response_b: Response[Any] = await model.generate(
         messages=messages,
         client=c,
     )
@@ -100,8 +100,8 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         query: str = Field(description="The query to use in the search")
 
     tool_deck = [
-        Tool(GetWeather, lambda x: ""),
-        Tool(SearchWikipedia, lambda x: ""),
+        Tool(GetWeather, lambda x: ""),  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+        Tool(SearchWikipedia, lambda x: ""),  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     ]
 
     total_cost = 0.0
@@ -128,7 +128,7 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
     m.extend(response.messages)
     m.append(tr)
 
-    response = await model.generate(
+    response: Response[Any] = await model.generate(
         client=c,
         messages=m,
         tools=tool_deck,

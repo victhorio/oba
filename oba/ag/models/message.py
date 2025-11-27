@@ -21,7 +21,7 @@ ModelID = Literal[
 
 @define
 class MessageBase:
-    _provider_payload_cache: dict[str, dict[str, object]] = field(init=False, factory=dict)
+    payload_cache: dict[str, dict[str, object]] = field(init=False, factory=dict)
     """
     All `Message` types should have this field which is used to store the result of the
     transformation from our standardized data type into a valid payload (dict[str, object])

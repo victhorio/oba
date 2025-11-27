@@ -1,7 +1,7 @@
 import asyncio
 import pprint
 from enum import StrEnum, auto
-from typing import Literal
+from typing import Any, Literal
 
 import httpx
 from attrs import asdict
@@ -43,7 +43,7 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
     ]
 
     model = OpenAIModel("gpt-5-nano", reasoning_effort="low")
-    response = await model.generate(messages=messages, client=c)
+    response: Response[Any] = await model.generate(messages=messages, client=c)
     _show_response(response, "simple message")
     return response.dollar_cost
 
@@ -57,7 +57,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
     ]
 
     model = OpenAIModel("gpt-5-mini", reasoning_effort="medium")
-    response_a = await model.generate(
+    response_a: Response[Any] = await model.generate(
         messages=messages,
         client=c,
     )
@@ -70,7 +70,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
             text="Hey, can you remind me what's my name again?",
         )
     )
-    response_b = await model.generate(
+    response_b: Response[Any] = await model.generate(
         messages=messages,
         client=c,
     )
@@ -92,7 +92,7 @@ async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
     ]
 
     model = OpenAIModel("gpt-5-mini", reasoning_effort="low")
-    response = await model.generate(
+    response: Response[Any] = await model.generate(
         client=c,
         messages=messages,
         structured_output=CountryPick,
@@ -159,7 +159,7 @@ async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
     ]
 
     model = OpenAIModel("gpt-5.1", reasoning_effort="low")
-    response = await model.generate(
+    response: Response[Any] = await model.generate(
         client=c,
         messages=messages,
         structured_output=NPCBrainstorm,
@@ -194,8 +194,8 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
         query: str = Field(description="The query to use in the search")
 
     tool_deck = [
-        Tool(GetWeather, lambda x: ""),
-        Tool(SearchWikipedia, lambda x: ""),
+        Tool(GetWeather, lambda x: ""),  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+        Tool(SearchWikipedia, lambda x: ""),  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     ]
 
     total_cost = 0.0
@@ -207,7 +207,7 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
     ]
 
     model = OpenAIModel("gpt-5-mini", reasoning_effort="low")
-    response = await model.generate(
+    response: Response[Any] = await model.generate(
         client=c,
         messages=m,
         tools=tool_deck,

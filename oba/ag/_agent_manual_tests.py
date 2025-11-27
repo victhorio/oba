@@ -301,7 +301,7 @@ class GetWeather(BaseModel):
     )
 
 
-get_weather = Tool(GetWeather, lambda **kwargs: str(random.randint(20, 30)))
+get_weather = Tool(GetWeather, lambda **kwargs: str(random.randint(20, 30)))  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
 
 
 class SearchWikipedia(BaseModel):
@@ -312,4 +312,4 @@ class SearchWikipedia(BaseModel):
     query: str = Field(description="The query to use in the search")
 
 
-search_wikipedia = Tool(SearchWikipedia, lambda **kwargs: "ERROR: Bad connection")
+search_wikipedia = Tool(SearchWikipedia, lambda **kwargs: "ERROR: Bad connection")  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]

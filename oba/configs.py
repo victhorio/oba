@@ -76,7 +76,7 @@ def _setup_interactive() -> Config:
 
 
 def _write_to_path(config: Config, path: Path) -> None:
-    payload: dict = asdict(config)
+    payload: dict[str, object] = asdict(config)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n")
 

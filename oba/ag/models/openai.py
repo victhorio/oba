@@ -51,10 +51,10 @@ class OpenAIModel(Model):
         max_output_tokens: int | None = None,
         tools: list[Tool] | None = None,
         tool_choice: ToolChoice | None = None,
-        parallel_tool_calls: bool = False,
+        parallel_tool_calls: bool | None = False,
         timeout: int = DEFAULT_TIMEOUT,
         debug: bool = False,
-    ) -> AsyncIterator[str | ToolCall | Response]:
+    ) -> AsyncIterator[str | ToolCall | Response[Any]]:
         """
         Yields:
         - text deltas as strings as soon as they happen
@@ -64,7 +64,7 @@ class OpenAIModel(Model):
 
         max_output_tokens = max_output_tokens or self.max_output_tokens
 
-        payload = {
+        payload: dict[str, object] = {
             "input": [_transform_message_to_payload(m) for m in messages],
             "model": self.model_id,
             "max_output_tokens": max_output_tokens,
@@ -160,7 +160,7 @@ class OpenAIModel(Model):
     ) -> Response[StructuredModelT]:
         max_output_tokens = max_output_tokens or self.max_output_tokens
 
-        payload = {
+        payload: dict[str, object] = {
             "input": [_transform_message_to_payload(m) for m in messages],
             "model": self.model_id,
             "max_output_tokens": max_output_tokens,
@@ -357,7 +357,7 @@ def _transform_message_to_payload(msg: Message) -> dict[str, object]:
     payload: dict[str, object]
 
     # make sure that we don't need to recompute the payload for this message
-    if payload := msg._provider_payload_cache.get(_OPENAI_PROVIDER_ID, dict()):
+    if payload := msg.payload_cache.get(_OPENAI_PROVIDER_ID, dict()):
         return payload
 
     if isinstance(msg, Content):
@@ -393,7 +393,7 @@ def _transform_message_to_payload(msg: Message) -> dict[str, object]:
         # this branch should be greyed out by the LSP due to exhaustive match
         raise ValueError(f"received invalid message type: {type(msg)}")
 
-    msg._provider_payload_cache[_OPENAI_PROVIDER_ID] = parsed
+    msg.payload_cache[_OPENAI_PROVIDER_ID] = parsed
     return parsed
 
 
