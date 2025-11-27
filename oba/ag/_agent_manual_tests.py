@@ -33,6 +33,8 @@ async def run_manual_tests() -> None:
             test_multi_turn_tool_calling(c),
             test_multi_turn_tool_calling_anthropic(c),
             test_multi_turn_tool_calling_gemini(c),
+            test_parallel_tool_calling(c),
+            test_parallel_tool_calling_anthropic(c),
         )
 
     total_cost = sum(costs)
@@ -228,6 +230,50 @@ async def test_multi_turn_tool_calling_anthropic(c: httpx.AsyncClient) -> float:
 
     _show_memory(
         memory.get_messages(response.session_id), "multi turn tool calling: anthropic: memory"
+    )
+
+    return response.usage.total_cost
+
+
+async def test_parallel_tool_calling(c: httpx.AsyncClient) -> float:
+    memory = EphemeralMemory()
+    model = OpenAIModel("gpt-5.1")
+    agent = Agent(
+        model=model,
+        client=c,
+        memory=memory,
+        tools=[get_weather],
+        system_prompt=(
+            "If a user asks for temperature in multiple locations, call the relevant tool once for all places, at the same time (in parallel)."
+        ),
+    )
+    response = await agent.run(
+        "What's the weather like today in Rio de Janeiro, Amsterdam and New York? In Celcius.",
+    )
+
+    _show_memory(memory.get_messages(response.session_id), "parallel tool calling: memory")
+
+    return response.usage.total_cost
+
+
+async def test_parallel_tool_calling_anthropic(c: httpx.AsyncClient) -> float:
+    memory = EphemeralMemory()
+    model = AnthropicModel("claude-sonnet-4-5", reasoning_effort=1_024)
+    agent = Agent(
+        model=model,
+        client=c,
+        memory=memory,
+        tools=[get_weather],
+        system_prompt=(
+            "If a user asks for temperature in multiple locations, call the relevant tool once for all places, at the same time (in parallel)."
+        ),
+    )
+    response = await agent.run(
+        "What's the weather like today in Rio de Janeiro, Amsterdam and New York? In Celcius.",
+    )
+
+    _show_memory(
+        memory.get_messages(response.session_id), "parallel tool calling: anthropic: memory"
     )
 
     return response.usage.total_cost
