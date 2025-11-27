@@ -13,7 +13,9 @@ def create_web_search_tool(client: httpx.AsyncClient) -> Tool:
     if not api_key:
         raise RuntimeError("PERPLEXITY_API_KEY environment variable is not set")
 
-    async def _web_search(query: str) -> str:
+    WEB_SEARCH_FLAT_COST = 5 / 1000  # 5 USD per 1k requests
+
+    async def _web_search(query: str) -> tuple[str, float]:
         response = await client.post(
             _PERPLEXITY_SEARCH_URL,
             headers={
@@ -29,10 +31,13 @@ def create_web_search_tool(client: httpx.AsyncClient) -> Tool:
         )
 
         if not response.is_success:
-            return f"[WebSearch API returned status code {response.status_code}]"
+            return (
+                f"[WebSearch API returned status code {response.status_code}]",
+                0.0,
+            )
 
         if results := response.json().get("results"):
-            return json.dumps(results)
+            return json.dumps(results), WEB_SEARCH_FLAT_COST
         else:
             raise AssertionError("WebSearch API returned no `results` key")
 
@@ -44,7 +49,7 @@ def create_agentic_web_search_tool(client: httpx.AsyncClient) -> Tool:
     if not api_key:
         raise RuntimeError("PERPLEXITY_API_KEY environment variable is not set")
 
-    async def _agentic_web_search(query: str, enhanced: bool) -> str:
+    async def _agentic_web_search(query: str, enhanced: bool) -> tuple[str, float]:
         response = await client.post(
             _PERPLEXITY_CHAT_URL,
             headers={
@@ -67,12 +72,14 @@ def create_agentic_web_search_tool(client: httpx.AsyncClient) -> Tool:
         )
 
         if not response.is_success:
-            return f"[AgenticWebSearch API returned status code {response.status_code}]"
+            return (
+                f"[AgenticWebSearch API returned status code {response.status_code}]",
+                0.0,
+            )
 
         data = response.json()
 
-        # TODO: actually use this information
-        _ = data["usage"]["cost"]["total_cost"]  # dollar cost
+        dollar_cost = data["usage"]["cost"]["total_cost"]
 
         # Citations are a list of links that are cited in the response by 1-based index. So in the
         # actual response we may have instances like "[2][3]", "[10]", etc. We can enhance this
@@ -95,7 +102,10 @@ def create_agentic_web_search_tool(client: httpx.AsyncClient) -> Tool:
             for i, sr in enumerate(search_results)
         ]
 
-        return f"<result>\n{content.strip()}\n</result>\n\n<references>\n{'\n'.join(enriched_citations)}\n</references>"
+        return (
+            f"<result>\n{content.strip()}\n</result>\n\n<references>\n{'\n'.join(enriched_citations)}\n</references>",
+            dollar_cost,
+        )
 
     return Tool(spec=AgenticWebSearch, callable=_agentic_web_search)
 

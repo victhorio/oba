@@ -120,12 +120,12 @@ class Agent:
                 for tc in response.tool_calls:
                     full_text_response.append(f"[Tool call: {tc.name}]")
 
-            tool_call_coros = [
-                self.tool_call(tc, return_error_strings=tool_calls_safe)
-                for tc in response.tool_calls
-            ]
-            tool_results = await asyncio.gather(*tool_call_coros)
+            tool_results, tool_costs = await self.tool_calls(
+                response.tool_calls,
+                return_error_strings=tool_calls_safe,
+            )
 
+            usage.tool_costs += tool_costs
             messages_new.extend(tool_results)
 
         if self.memory:
@@ -204,12 +204,12 @@ class Agent:
                 for tc in response.tool_calls:
                     full_text_response.append(f"[Tool call: {tc.name}]")
 
-            tool_call_coros = [
-                self.tool_call(tc, return_error_strings=tool_calls_safe)
-                for tc in response.tool_calls
-            ]
-            tool_results = await asyncio.gather(*tool_call_coros)
+            tool_results, tool_costs = await self.tool_calls(
+                response.tool_calls,
+                return_error_strings=tool_calls_safe,
+            )
 
+            usage.tool_costs += tool_costs
             messages_new.extend(tool_results)
 
         if self.memory:
@@ -226,27 +226,51 @@ class Agent:
             content="\n\n".join(full_text_response),
         )
 
+    async def tool_calls(
+        self,
+        tool_calls: list[ToolCall],
+        return_error_strings: bool,
+    ) -> tuple[list[ToolResult], float]:
+        tool_results_full = await asyncio.gather(
+            *[self.tool_call(tc, return_error_strings=return_error_strings) for tc in tool_calls]
+        )
+
+        tool_results: list[ToolResult] = list()
+        tool_costs = 0.0
+        for tool_result, tool_cost in tool_results_full:
+            tool_results.append(tool_result)
+            tool_costs += tool_cost
+
+        return tool_results, tool_costs
+
     async def tool_call(
         self,
         tool_call: ToolCall,
         return_error_strings: bool,
-    ) -> ToolResult:
-        if tool_call.name not in self.callables:
-            raise ValueError(f"TollCall for a non-registered tool '{tool_call.name}'")
+    ) -> tuple[ToolResult, float]:
+        name = tool_call.name
+        assert name in self.callables, f"TollCall for a non-registered tool '{name}'"
 
-        callable = self.callables[tool_call.name]
+        callable = self.callables[name]
         try:
             output = await callable(**tool_call.parsed_args)
         except Exception as exc:
             if return_error_strings:
-                output = f"[Tool '{tool_call.name}' call failed: {exc.__class__.__name__} {exc}]"
+                output = f"[Tool '{name}' call failed: {exc.__class__.__name__} {exc}]"
             else:
-                raise RuntimeError(f"Tool '{tool_call.name}' call failed") from exc
+                raise RuntimeError(f"Tool '{name}' call failed") from exc
 
-        if not isinstance(output, str):
-            raise ValueError(f"Tool '{tool_call.name}' call returned non-string output")
+        if isinstance(output, tuple):
+            assert len(output) == 2, f"'{name}' returned weirdly sized tuple: {output}"
 
-        return ToolResult(
-            call_id=tool_call.call_id,
-            result=output,
-        )
+            result, cost = output
+            assert isinstance(result, str), f"'{name}' returned a non-string: {type(result)}"
+            assert isinstance(cost, float), f"'{name}' returned a non-float: {type(cost)}"
+
+            tool_result = ToolResult(call_id=tool_call.call_id, result=result)
+            return tool_result, cost
+
+        if isinstance(output, str):
+            return ToolResult(call_id=tool_call.call_id, result=output), 0.0
+
+        raise AssertionError(f"'{name}' returned a weird type: {type(output)}")

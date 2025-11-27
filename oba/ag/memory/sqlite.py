@@ -55,7 +55,8 @@ class SQLiteMemory(Memory):
                     session_id TEXT PRIMARY KEY,
                     input_tokens INTEGER NOT NULL DEFAULT 0,
                     output_tokens INTEGER NOT NULL DEFAULT 0,
-                    total_cost REAL NOT NULL DEFAULT 0.0
+                    total_cost REAL NOT NULL DEFAULT 0.0,
+                    tool_costs REAL NOT NULL DEFAULT 0.0
                 );
                 """
             )
@@ -81,7 +82,7 @@ class SQLiteMemory(Memory):
         with self._conn:
             row = self._conn.execute(
                 """
-                SELECT input_tokens, output_tokens, total_cost
+                SELECT input_tokens, output_tokens, total_cost, tool_costs
                 FROM usage
                 WHERE session_id = ?;
                 """,
@@ -95,6 +96,7 @@ class SQLiteMemory(Memory):
             input_tokens=row["input_tokens"],
             output_tokens=row["output_tokens"],
             total_cost=row["total_cost"],
+            tool_costs=row["tool_costs"],
         )
 
     @override
@@ -120,18 +122,20 @@ class SQLiteMemory(Memory):
 
             self._conn.execute(
                 """
-                INSERT INTO usage (session_id, input_tokens, output_tokens, total_cost)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO usage (session_id, input_tokens, output_tokens, total_cost, tool_costs)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(session_id) DO UPDATE SET
                     input_tokens = usage.input_tokens + excluded.input_tokens,
                     output_tokens = usage.output_tokens + excluded.output_tokens,
-                    total_cost = usage.total_cost + excluded.total_cost;
+                    total_cost = usage.total_cost + excluded.total_cost,
+                    tool_costs = usage.tool_costs + excluded.tool_costs;
                 """,
                 (
                     session_id,
                     usage.input_tokens,
                     usage.output_tokens,
                     usage.total_cost,
+                    usage.tool_costs,
                 ),
             )
 

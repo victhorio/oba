@@ -93,6 +93,7 @@ async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
     t.add_row("Input tokens", f"{usage.input_tokens:,}")
     t.add_row("Output tokens", f"{usage.output_tokens:,}")
     t.add_row("Total cost", f"${usage.total_cost:.3f}", style="bright_white")
+    t.add_row("Tool costs", f"${usage.tool_costs:.3f}")
     console.print(t, style="white")
 
     return 0
