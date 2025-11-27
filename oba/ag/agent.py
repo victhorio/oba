@@ -1,7 +1,6 @@
 import asyncio
-import inspect
 import uuid
-from typing import Callable, Coroutine
+from typing import Callable
 
 import httpx
 from attrs import define
@@ -233,9 +232,7 @@ class Agent:
 
         callable = self.callables[tool_call.name]
         try:
-            output: str | Coroutine[None, None, str] = callable(**tool_call.parsed_args)
-            if inspect.iscoroutine(output):
-                output = await output
+            output = await callable(**tool_call.parsed_args)
         except Exception as exc:
             if return_error_strings:
                 output = f"[Tool '{tool_call.name}' call failed: {exc.__class__.__name__} {exc}]"

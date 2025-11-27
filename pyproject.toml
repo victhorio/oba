@@ -24,6 +24,10 @@ line-length = 100
 [tool.ruff.lint]
 extend-select = ["I"]
 
+[tool.pyright]
+typeCheckingMode = "strict"
+reportUnnecessaryIsInstance = false
+
 [dependency-groups]
 dev = [
     "ipython>=9.7.0",
