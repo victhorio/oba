@@ -8,6 +8,7 @@ wheels/
 
 # Tool-generated files
 .ruff_cache
+.obisidian/
 
 # Virtual environments
 .venv
