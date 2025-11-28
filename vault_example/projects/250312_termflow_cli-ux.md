@@ -1,6 +1,6 @@
 #ux #cli #work
 
-CLI ergonomics and UX ideas pulled from [[daily/2025-03-12]] and constrained by [[projects/250310_termflow_architecture]].
+CLI ergonomics and UX ideas pulled from [[2025-03-12]] and constrained by [[250310_termflow_architecture]].
 
 ## Command surface
 - `tf summary` for staged changes; `tf commit --draft` to propose a message.

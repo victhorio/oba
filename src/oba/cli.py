@@ -19,19 +19,23 @@ from . import agents, configs
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="gpt")
+    parser.add_argument("--test", action="store_true")
     args = parser.parse_args()
 
     model = args.model
     assert model in ("gpt", "gemini", "claude")
 
-    return asyncio.run(repl(model))
+    is_test: bool = args.test
+    assert isinstance(is_test, bool)
+
+    return asyncio.run(repl(model, is_test))
 
 
-async def repl(model: Literal["gpt", "gemini", "claude"]) -> int:
+async def repl(model: Literal["gpt", "gemini", "claude"], is_test: bool) -> int:
     console = Console(highlight=False)
 
     async with httpx.AsyncClient() as client:
-        config = configs.load()
+        config = configs.load(is_test)
         agent = agents.new(config, model, client)
         # seeing as memory is typed as optional, since we plan to use it we need to assert it
         # for the lsp to calm down about accesses to it

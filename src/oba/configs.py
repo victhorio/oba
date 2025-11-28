@@ -1,10 +1,14 @@
+import atexit
 import json
+import shutil
 import sys
+import tempfile
 from functools import lru_cache
 from json import JSONDecodeError
 from pathlib import Path
 
 from attrs import asdict, define
+from rich import print
 
 CONFIG_PATH = Path.home() / ".config" / "oba" / "settings.json"
 
@@ -16,7 +20,10 @@ class Config:
 
 
 @lru_cache
-def load() -> Config:
+def load(is_test: bool) -> Config:
+    if is_test:
+        return load_test_config()
+
     if config_from_path := _read_from_path(CONFIG_PATH):
         return config_from_path
 
@@ -28,6 +35,29 @@ def load() -> Config:
 
     _write_to_path(config, CONFIG_PATH)
     return config
+
+
+def load_test_config() -> Config:
+    vault_example = Path("vault_example")
+
+    if not vault_example.is_dir():
+        print(
+            "[red][bold]Error:[/bold] --test mode can only be run in the same directory as `vault_example/`[/red]"
+        )
+        sys.exit(1)
+
+    # Create a temp directory and copy vault contents into it
+    temp_dir = tempfile.mkdtemp(prefix="oba_test_vault_")
+    shutil.copytree(vault_example, temp_dir, dirs_exist_ok=True)
+
+    # Clean up on program exit
+    atexit.register(shutil.rmtree, temp_dir, ignore_errors=True)
+
+    print(f"[white]Using temporary vault at[/white] [orange3]{temp_dir}[/orange3]")
+    return Config(
+        user_name="Developer",
+        vault_path=temp_dir,
+    )
 
 
 def _read_from_path(path: Path) -> Config | None:

@@ -1,6 +1,6 @@
 #travel #reflection
 
-Narrative from the Sintra day trip referenced in [[daily/2025-03-14]].
+Narrative from the Sintra day trip referenced in [[2025-03-14]].
 
 ## What went well
 - Early train avoided most of the crowds; bought return ticket right away.

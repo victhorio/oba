@@ -1,6 +1,6 @@
 #travel #planning
 
-Rough itinerary for the first stretch in Lisbon. Linked from [[daily/2025-03-03]] and updated as spots get checked off.
+Rough itinerary for the first stretch in Lisbon. Linked from [[2025-03-03]] and updated as spots get checked off.
 
 ## Places to visit
 - Alfama wander + miradouros (Miradouro da Graça, Santa Luzia).

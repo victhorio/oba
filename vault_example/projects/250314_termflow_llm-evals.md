@@ -1,6 +1,6 @@
 #eval #llm #work
 
-Ideas for measuring whether the helper is useful in practice. Builds on scope from [[projects/250306_termflow_overview]].
+Ideas for measuring whether the helper is useful in practice. Builds on scope from [[250306_termflow_overview]].
 
 ## Prompt sets
 - Summarize a multi-file diff and extract TODOs.

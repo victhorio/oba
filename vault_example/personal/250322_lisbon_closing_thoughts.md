@@ -1,6 +1,6 @@
 #reflection #travel #meta
 
-End-of-trip reflection linked from [[daily/2025-03-23]]. Quick dump before the flight.
+End-of-trip reflection linked from [[2025-03-23]]. Quick dump before the flight.
 
 ## Trip takeaways
 - Best days balanced a morning wander with an afternoon focus block.
@@ -9,7 +9,7 @@ End-of-trip reflection linked from [[daily/2025-03-23]]. Quick dump before the f
 
 ## Project status
 - The helper is a functional prototype: streaming works, commands are coherent, and docs are draft-level.
-- Architecture feels sane ([[projects/250310_termflow_architecture]]), but eval and launch plans need more reps ([[projects/250314_termflow_llm-evals]], [[projects/250319_termflow_launch-plan]]).
+- Architecture feels sane ([[250310_termflow_architecture]]), but eval and launch plans need more reps ([[250314_termflow_llm-evals]], [[250319_termflow_launch-plan]]).
 - Still undecided on open-sourcing; leaning toward a small OSS launch first to get feedback.
 
 ## If doing this again

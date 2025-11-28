@@ -21,4 +21,4 @@ Initial scoping note for a terminal-based AI helper focused on developer workflo
 - Hooks for custom prompts per repo.
 - Opt-in analytics to learn which commands people actually use.
 
-Next: feed this into [[projects/250310_termflow_architecture]] and keep UX thoughts in [[projects/250312_termflow_cli-ux]].
+Next: feed this into [[250310_termflow_architecture]] and keep UX thoughts in [[250312_termflow_cli-ux]].

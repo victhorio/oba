@@ -1,6 +1,6 @@
 #infra #architecture
 
-High-level sketch for how the CLI talks to the model and manages context. Builds on [[projects/250306_termflow_overview]].
+High-level sketch for how the CLI talks to the model and manages context. Builds on [[250306_termflow_overview]].
 
 ## Components
 - **CLI entrypoint:** parses commands/flags, gathers repo context, and hands off to a request builder.
@@ -17,4 +17,4 @@ High-level sketch for how the CLI talks to the model and manages context. Builds
 - Should we embed a small history buffer for multi-turn mode?
 - What minimal telemetry (if any) is acceptable?
 
-Future notes: UX constraints in [[projects/250312_termflow_cli-ux]] and eval ideas in [[projects/250314_termflow_llm-evals]].
+Future notes: UX constraints in [[250312_termflow_cli-ux]] and eval ideas in [[250314_termflow_llm-evals]].

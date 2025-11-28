@@ -1,6 +1,6 @@
 #remote-work #meta
 
-Short rules for working on side projects while traveling. Informed by [[projects/250306_termflow_overview]] and the guilt vs productivity cycles in [[daily/2025-03-09]] and [[daily/2025-03-10]].
+Short rules for working on side projects while traveling. Informed by [[250306_termflow_overview]] and the guilt vs productivity cycles in [[2025-03-09]] and [[2025-03-10]].
 
 ## Rules
 - One focused block per day is enough; anything extra is bonus.

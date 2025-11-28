@@ -1,6 +1,6 @@
 #decision #open-questions
 
-Centralized list of unresolved items pulled from scattered notes ([[daily/2025-03-14]], [[daily/2025-03-21]]).
+Centralized list of unresolved items pulled from scattered notes ([[2025-03-14]], [[2025-03-21]]).
 
 ## Architecture
 - How aggressive should context caching be before it risks staleness?
