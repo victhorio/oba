@@ -5,8 +5,8 @@ from typing import Any, AsyncIterator, override
 from httpx import AsyncClient
 from typing_extensions import Literal
 
-from oba.ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
-from oba.ag.models.message import (
+from ag.models.constants import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT
+from ag.models.message import (
     Content,
     Message,
     ModelID,
@@ -15,8 +15,8 @@ from oba.ag.models.message import (
     ToolResult,
     Usage,
 )
-from oba.ag.models.model import Model, Response, StructuredModelT, ToolChoice
-from oba.ag.tool import Tool
+from ag.models.model import Model, Response, StructuredModelT, ToolChoice
+from ag.tool import Tool
 
 
 class OpenAIModel(Model):

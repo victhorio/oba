@@ -2,6 +2,29 @@ version = 1
 revision = 3
 requires-python = ">=3.14"
 
+[manifest]
+members = [
+    "ag",
+    "oba",
+]
+
+[[package]]
+name = "ag"
+version = "0.1.0"
+source = { editable = "packages/ag" }
+dependencies = [
+    { name = "attrs" },
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "attrs", specifier = ">=25.4.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.12.0" },
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -216,6 +239,7 @@ name = "oba"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ag" },
     { name = "attrs" },
     { name = "httpx" },
     { name = "pydantic" },
@@ -231,6 +255,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ag", editable = "packages/ag" },
     { name = "attrs", specifier = ">=25.4.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.12.0" },

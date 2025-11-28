@@ -7,11 +7,11 @@ import httpx
 from attrs import asdict
 from pydantic import BaseModel, ConfigDict, Field
 
-import oba.ag._manual_test_utils as test_utils
-from oba.ag import Tool
-from oba.ag.models.message import Content, Message, ToolResult
-from oba.ag.models.model import Response, StructuredModelT
-from oba.ag.models.openai import OpenAIModel
+import ag._manual_test_utils as test_utils
+from ag import Tool
+from ag.models.message import Content, Message, ToolResult
+from ag.models.model import Response, StructuredModelT
+from ag.models.openai import OpenAIModel
 
 
 async def run_manual_tests() -> None:

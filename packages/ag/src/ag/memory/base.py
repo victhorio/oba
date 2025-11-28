@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from oba.ag.common import Usage
-from oba.ag.models.message import Message
+from ag.common import Usage
+from ag.models.message import Message
 
 
 class Memory(ABC):

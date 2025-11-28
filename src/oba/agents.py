@@ -3,13 +3,13 @@ from functools import partial
 from typing import Literal
 
 import httpx
+from ag import Agent, Tool
+from ag.memory import EphemeralMemory
+from ag.models import AnthropicModel, CompletionsModel, OpenAIModel
+from ag.tools import create_agentic_web_search_tool
 from pydantic import BaseModel, Field
 
 from oba import prompts, vault
-from oba.ag import Agent, Tool
-from oba.ag.memory import EphemeralMemory
-from oba.ag.models import AnthropicModel, CompletionsModel, OpenAIModel
-from oba.ag.tools import create_agentic_web_search_tool
 from oba.configs import Config
 
 

@@ -1,25 +1,28 @@
 import asyncio
 import pprint
+from enum import StrEnum, auto
 from typing import Any, Literal
 
 import httpx
 from attrs import asdict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-import oba.ag._manual_test_utils as test_utils
-from oba.ag.models.anthropic import AnthropicModel
-from oba.ag.models.message import Content, Message, ToolResult
-from oba.ag.models.model import Response, StructuredModelT
-from oba.ag.tool import Tool
+import ag._manual_test_utils as test_utils
+from ag.models.completions import CompletionsModel
+from ag.models.message import Content, Message, ToolResult
+from ag.models.model import Response, StructuredModelT
+from ag.tool import Tool
 
 
 async def run_manual_tests() -> None:
-    test_utils.print_header("Anthropic Model")
+    test_utils.print_header("Gemini (Completions) Model")
 
     async with httpx.AsyncClient() as c:
         costs = await asyncio.gather(
             test_regular_message(c),
             test_message_history(c),
+            # test_structured_output_strings(c),
+            # test_structured_output_complex(c),
             test_tool_calling(c),
         )
 
@@ -39,10 +42,9 @@ async def test_regular_message(c: httpx.AsyncClient) -> float:
         ),
     ]
 
-    model = AnthropicModel("claude-haiku-4-5")
+    model = CompletionsModel("gemini-2.5-flash", reasoning_effort="low")
     response: Response[Any] = await model.generate(messages=messages, client=c)
     _show_response(response, "simple message")
-
     return response.dollar_cost
 
 
@@ -54,7 +56,7 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
         )
     ]
 
-    model = AnthropicModel("claude-haiku-4-5", reasoning_effort=1024, max_output_tokens=2048)
+    model = CompletionsModel("gemini-2.5-flash", reasoning_effort="medium")
     response_a: Response[Any] = await model.generate(
         messages=messages,
         client=c,
@@ -74,6 +76,98 @@ async def test_message_history(c: httpx.AsyncClient) -> float:
     )
     _show_response(response_b, "message history: second turn")
     return response_a.dollar_cost + response_b.dollar_cost
+
+
+async def test_structured_output_strings(c: httpx.AsyncClient) -> float:
+    class CountryPick(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        reasoning: str = Field(description="A short opinionated reasoning behind the pick")
+        country: str = Field(description="The name of the country")
+
+    messages: list[Message] = [
+        Content(
+            role="user",
+            text="Hey! If I had to pick a country to live in, which do you suggest? You HAVE to pick one.",
+        ),
+    ]
+
+    model = CompletionsModel("gemini-2.5-flash", reasoning_effort="low")
+    response: Response[Any] = await model.generate(
+        client=c,
+        messages=messages,
+        structured_output=CountryPick,
+    )
+    _show_response(response, "structured output: strings")
+
+    # testing the typechecker
+    country_pick: CountryPick
+    assert response.structured_output is not None
+    country_pick = response.structured_output
+    _ = country_pick
+
+    return response.dollar_cost
+
+
+async def test_structured_output_complex(c: httpx.AsyncClient) -> float:
+    class Town(BaseModel):
+        """
+        Some basic information about a Town the NPC was born.
+        """
+
+        model_config = ConfigDict(extra="forbid")
+        name: str = Field(description="A simple medieval name for the town")
+        population: int = Field(
+            description="The population of the town, <100 is small, <500 is regular, and biggest cities should be >1000"
+        )
+
+    class Race(StrEnum):
+        """
+        Race of a character
+        """
+
+        HUMAN = auto()
+        ELF = auto()
+        HALFLING = auto()
+
+    class NPC(BaseModel):
+        """
+        Information about the NPC
+        """
+
+        model_config = ConfigDict(extra="forbid")
+        name: str = Field(description="Age of the NPC")
+        race: Race
+        origin: Town
+        age: int = Field(description="A race-appropriate age for the NPC")
+        personality_traits: list[str] = Field(
+            description="A couple of personality traits for the NPC"
+        )
+
+    class NPCBrainstorm(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        npcs: list[NPC] = Field(
+            description="One NPC for each race, each from a different origin",
+            min_length=3,
+            max_length=3,
+        )
+
+    messages: list[Message] = [
+        Content(
+            role="user",
+            text="Hey! I need your help coming up with ideas for 3 random NPCs, each from a difference race! Just go for it",
+        )
+    ]
+
+    model = CompletionsModel("gemini-2.5-flash", reasoning_effort="low")
+    response: Response[Any] = await model.generate(
+        client=c,
+        messages=messages,
+        structured_output=NPCBrainstorm,
+    )
+
+    _show_response(response, "structured output: complex")
+
+    return response.dollar_cost
 
 
 async def test_tool_calling(c: httpx.AsyncClient) -> float:
@@ -108,11 +202,11 @@ async def test_tool_calling(c: httpx.AsyncClient) -> float:
     m: list[Message] = [
         Content(
             role="user",
-            text="Qual a temperatura aqui no rio de janeiro hoje?",
+            text="Qual a temperatura aqui no rio de janeiro hoje em celcius?",
         )
     ]
 
-    model = AnthropicModel("claude-sonnet-4-5", reasoning_effort=1_024)
+    model = CompletionsModel("gemini-2.5-flash", reasoning_effort="low")
     response = await model.generate(
         client=c,
         messages=m,

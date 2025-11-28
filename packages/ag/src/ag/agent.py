@@ -5,11 +5,11 @@ from typing import Any, Callable
 import httpx
 from attrs import define
 
-from oba.ag.common import Usage
-from oba.ag.memory import Memory
-from oba.ag.models import AnthropicModel, Content, Message, Model, OpenAIModel, ToolCall, ToolResult
-from oba.ag.models import Response as ModelResponse
-from oba.ag.tool import Tool, ToolCallable
+from ag.common import Usage
+from ag.memory import Memory
+from ag.models import AnthropicModel, Content, Message, Model, OpenAIModel, ToolCall, ToolResult
+from ag.models import Response as ModelResponse
+from ag.tool import Tool, ToolCallable
 
 
 @define

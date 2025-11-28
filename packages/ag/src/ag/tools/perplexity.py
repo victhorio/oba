@@ -5,7 +5,7 @@ import warnings
 import httpx
 from pydantic import BaseModel, Field
 
-from ..tool import Tool
+from ag.tool import Tool
 
 
 def create_web_search_tool(client: httpx.AsyncClient) -> Tool:

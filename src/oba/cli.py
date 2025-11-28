@@ -5,14 +5,13 @@ from typing import Literal
 from uuid import uuid4
 
 import httpx
+from ag.models import ToolCall
 from rich import box
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.table import Table
-
-from oba.ag.models import ToolCall
 
 from . import agents, configs
 

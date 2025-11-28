@@ -9,14 +9,14 @@ import httpx
 from attrs import asdict
 from pydantic import BaseModel, Field
 
-import oba.ag._manual_test_utils as test_utils
-from oba.ag import Tool
-from oba.ag.agent import Agent, Response
-from oba.ag.memory import EphemeralMemory, SQLiteMemory
-from oba.ag.models.anthropic import AnthropicModel
-from oba.ag.models.completions import CompletionsModel
-from oba.ag.models.message import Message, Reasoning
-from oba.ag.models.openai import OpenAIModel
+import ag._manual_test_utils as test_utils
+from ag import Tool
+from ag.agent import Agent, Response
+from ag.memory import EphemeralMemory, SQLiteMemory
+from ag.models.anthropic import AnthropicModel
+from ag.models.completions import CompletionsModel
+from ag.models.message import Message, Reasoning
+from ag.models.openai import OpenAIModel
 
 
 async def run_manual_tests() -> None:

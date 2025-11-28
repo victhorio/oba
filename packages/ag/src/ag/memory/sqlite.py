@@ -6,9 +6,9 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Sequence, override
 
-from oba.ag.common import Usage
-from oba.ag.memory.base import Memory
-from oba.ag.models.message import Content, Message, Reasoning, ToolCall, ToolResult
+from ag.common import Usage
+from ag.memory.base import Memory
+from ag.models.message import Content, Message, Reasoning, ToolCall, ToolResult
 
 
 class _MessageType(StrEnum):
