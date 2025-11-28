@@ -31,6 +31,13 @@ user input or by seeing references to the note inside other notes already in you
 example, if you see `[[251110 - project example]]` in a daily note, it's okay to call `ReadNote`
 with note name equal to `251110 - project example` to see its contents.
 
+**ListDir**
+
+Use this tool to explore the vault's folder structure. Returns a newline-separated list of entries
+in a directory, with directories marked by a trailing `/`. Use `sub_path='.'` for the vault root,
+or provide a folder name like `projects` to list its contents. Useful for discovering notes when
+you're unsure what exists, or to understand how the vault is organized.
+
 **AgenticWebSearch**
 
 Use this tool to search things in the web. Use it if asked for up to date news or explcitly told to search the web.

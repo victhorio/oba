@@ -1,3 +1,4 @@
+import os
 from datetime import date
 from functools import partial
 from typing import Literal
@@ -58,6 +59,7 @@ def new(
         system_prompt=system_prompt,
         tools=[
             create_read_note_tool(config.vault_path),
+            create_list_dir_tool(config.vault_path),
             create_agentic_web_search_tool(client),
         ],
         client=client,
@@ -72,7 +74,6 @@ class ReadNote(BaseModel):
     """
 
     note_name: str = Field(
-        ...,
         description=(
             "The name of the note to read, written in the same way as notes are referenced in the"
             " vault. For example, to read the /AGENTS.md file use `note_name='AGENTS'`, to read"
@@ -82,6 +83,35 @@ class ReadNote(BaseModel):
     )
 
 
+class ListDir(BaseModel):
+    """
+    Use this function to list the contents of a directory in the vault. You will be returned a
+    string with the contents of the directory, each separated by a newline. Directories will have
+    a `/` at the end, regular files will not.
+    """
+
+    sub_path: str = Field(
+        description=(
+            "The path of the directory to list, considering that the vault path will already be"
+            " prepended. So for example if you want to list the contents of the root, use `.`"
+            " and if you want to list the contents of a `folder` at the root of the vault, use"
+            " `folder`."
+        ),
+    )
+
+
 def create_read_note_tool(vault_path: str) -> Tool:
     callable = partial(vault.read_note, vault_path)
     return Tool(spec=ReadNote, callable=callable)
+
+
+def create_list_dir_tool(vault_path: str) -> Tool:
+    def callable(sub_path: str) -> str:
+        full_path = os.path.join(vault_path, sub_path)
+        if not os.path.isdir(full_path):
+            return f"[system message: directory '{sub_path}' does not exist]"
+
+        contents = [entry.name + ("/" if entry.is_dir() else "") for entry in os.scandir(full_path)]
+        return "\n".join(contents)
+
+    return Tool(spec=ListDir, callable=callable)
