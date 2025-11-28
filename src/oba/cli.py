@@ -94,6 +94,7 @@ async def repl(model: Literal["gpt", "gemini", "claude"], is_test: bool) -> int:
 
     t = Table(title="Session stats", show_header=False, box=box.MINIMAL)
     t.add_row("Input tokens", f"{usage.input_tokens:,}")
+    t.add_row("Cached input tokens", f"{usage.input_tokens_cached:,}", style="dim")
     t.add_row("Output tokens", f"{usage.output_tokens:,}")
     t.add_row("Total cost", f"${usage.total_cost:.3f}", style="bright_white")
     t.add_row("Tool costs", f"${usage.tool_costs:.3f}")

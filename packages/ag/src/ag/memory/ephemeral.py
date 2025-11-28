@@ -34,4 +34,4 @@ class EphemeralMemory(Memory):
             self._usage[session_id] = Usage()
 
         self._messages[session_id].extend(messages)
-        self._usage[session_id] = self._usage[session_id].acc(usage)
+        self._usage[session_id] = self._usage[session_id].add(usage)

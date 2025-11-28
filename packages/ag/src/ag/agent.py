@@ -101,9 +101,10 @@ class Agent:
             else:
                 raise AssertionError("did not receive a model response")
 
-            usage = usage.acc(
+            usage = usage.add(
                 Usage(
                     input_tokens=response.usage.input_tokens,
+                    input_tokens_cached=response.usage.input_tokens_cached,
                     output_tokens=response.usage.output_tokens,
                     total_cost=response.dollar_cost,
                 )
@@ -185,9 +186,10 @@ class Agent:
                 debug=debug,
             )
 
-            usage = usage.acc(
+            usage = usage.add(
                 Usage(
                     input_tokens=response.usage.input_tokens,
+                    input_tokens_cached=response.usage.input_tokens_cached,
                     output_tokens=response.usage.output_tokens,
                     total_cost=response.dollar_cost,
                 )
