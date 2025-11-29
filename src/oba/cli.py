@@ -1,6 +1,7 @@
 import argparse
 import sys
 import time
+from dataclasses import dataclass
 from typing import Literal
 from uuid import uuid4
 
@@ -8,11 +9,12 @@ import httpx
 from ag import Agent
 from ag.models import ToolCall
 from rich.text import Text
-from textual import work
+from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.widgets import Header, Input, Markdown, RichLog, Static
+from textual.message import Message
+from textual.widgets import Header, Markdown, RichLog, Static, TextArea
 
 from . import agents, configs
 
@@ -41,6 +43,13 @@ class ChatApp(App[None]):
 
     CSS = """
     VerticalScroll {
+        scrollbar-size-vertical: 1;
+        scrollbar-color: skyblue 60%;
+        scrollbar-color-hover: skyblue 90%;
+        scrollbar-color-active: skyblue 100%;
+    }
+
+    TextArea {
         scrollbar-size-vertical: 1;
         scrollbar-color: skyblue 60%;
         scrollbar-color-hover: skyblue 90%;
@@ -76,7 +85,8 @@ class ChatApp(App[None]):
 
     #input-box {
         height: auto;
-        max-height: 5;
+        min-height: 3;
+        max-height: 8;
         border: solid skyblue;
     }
 
@@ -133,7 +143,7 @@ class ChatApp(App[None]):
         yield Header(show_clock=True)
         with VerticalScroll(id="conversation"):
             yield RichLog(id="message-log", highlight=True, markup=True, wrap=True)
-        yield Input(placeholder="Type your message...", id="input-box")
+        yield ChatTextArea(placeholder="Type your message…", id="input-box")
         yield Static("0 tokens • $0.000 tokens cost • $0.000 tool cost", id="status-bar")
 
     async def on_mount(self) -> None:
@@ -146,7 +156,7 @@ class ChatApp(App[None]):
         self.title = f"oba • {self._agent.model.model_id}"
 
         # Focus the input box
-        self.query_one("#input-box", Input).focus()
+        self.query_one("#input-box", ChatTextArea).focus()
 
     async def on_unmount(self) -> None:
         """Clean up resources when the app unmounts."""
@@ -164,10 +174,10 @@ class ChatApp(App[None]):
         if self._client:
             await self._client.aclose()
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
+    async def on_chat_text_area_submitted(self, event: ChatTextArea.Submitted) -> None:
         """Handle user input submission."""
         query = event.value.strip()
-        input_widget = event.input
+        input_widget = event.text_area
 
         # Clear the input
         input_widget.clear()
@@ -243,7 +253,7 @@ class ChatApp(App[None]):
         finally:
             # Re-enable input
             self._is_processing = False
-            input_widget = self.query_one("#input-box", Input)
+            input_widget = self.query_one("#input-box", ChatTextArea)
             input_widget.disabled = False
             input_widget.placeholder = "Type your message..."
             input_widget.focus()
@@ -291,6 +301,25 @@ class ChatApp(App[None]):
     async def action_quit(self) -> None:
         """Handle quit action."""
         self.exit()
+
+
+class ChatTextArea(TextArea):
+    """A TextArea that submits on ctrl+enter"""
+
+    @dataclass
+    class Submitted(Message):
+        """Posted when the user presses Enter to submit their message."""
+
+        text_area: ChatTextArea
+        value: str
+
+    async def _on_key(self, event: events.Key) -> None:
+        if event.key == "ctrl+enter":
+            event.stop()
+            event.prevent_default()
+            self.post_message(self.Submitted(self, self.text))
+        else:
+            await super()._on_key(event)
 
 
 def _tool_call_delta(part: ToolCall) -> str:
