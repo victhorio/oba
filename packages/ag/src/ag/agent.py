@@ -50,7 +50,7 @@ class Agent:
     async def stream(
         self,
         input: str,
-        callback: Callable[[str | ToolCall], None],
+        callback: Callable[[str | ToolCall | None], None],
         *,
         model: Model | None = None,
         timeout_api: int = 60,
@@ -96,6 +96,7 @@ class Agent:
                 if isinstance(part, (str, ToolCall)):
                     callback(part)
                 elif isinstance(part, ModelResponse):
+                    callback(None)
                     response = part
                     break
             else:

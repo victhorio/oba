@@ -5,13 +5,12 @@ from uuid import uuid4
 import httpx
 from ag import Agent
 from ag.models import ToolCall
-from rich.markdown import Markdown
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.widgets import Footer, Header, Input, RichLog
+from textual.widgets import Footer, Header, Input, Markdown, RichLog, Static
 
 from . import agents, configs
 
@@ -23,7 +22,7 @@ def main() -> int:
     args = parser.parse_args()
 
     model = args.model
-    assert model in ("gpt", "gemini", "claude")
+    assert model in ("gpt", "claude")
 
     is_test: bool = args.test
     assert isinstance(is_test, bool)
@@ -53,6 +52,26 @@ class ChatApp(App[None]):
         max-height: 5;
         margin-top: 1;
     }
+
+    .token-count {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+
+    .assistant-label {
+        color: $secondary;
+        text-style: bold;
+    }
+
+    .user-label {
+        color: $warning;
+        text-style: bold;
+    }
+
+    .user-message {
+        color: $warning;
+        margin-bottom: 1;
+    }
     """
 
     BINDINGS = [
@@ -62,11 +81,11 @@ class ChatApp(App[None]):
 
     def __init__(
         self,
-        model: Literal["gpt", "gemini", "claude"],
+        model: Literal["gpt", "claude"],
         is_test: bool,
     ) -> None:
         super().__init__()
-        self.model_family: Literal["gpt", "gemini", "claude"] = model
+        self.model_family: Literal["gpt", "claude"] = model
         self.is_test = is_test
         self.session_id = str(uuid4())
 
@@ -141,13 +160,13 @@ class ChatApp(App[None]):
 
         assert self._agent is not None
 
-        log = self.query_one("#message-log", RichLog)
         conversation = self.query_one("#conversation", VerticalScroll)
 
-        # Display user message
-        log.write(Text("\n▶ You", style="bold yellow"))
-        log.write(Text(query, style="yellow"))
-        log.write(Text())
+        # Display user message by mounting widgets (preserves order with responses)
+        user_label = Static("▶ You", classes="user-label")
+        user_message = Static(query, classes="user-message")
+        await conversation.mount(user_label)
+        await conversation.mount(user_message)
 
         # Scroll to bottom
         conversation.scroll_end(animate=False)
@@ -168,41 +187,54 @@ class ChatApp(App[None]):
         log = self.query_one("#message-log", RichLog)
         conversation = self.query_one("#conversation", VerticalScroll)
 
-        log.write(Text("◀ Assistant", style="bold cyan"))
-
         # Track the current response for streaming
         current_response: list[str] = []
 
+        # Mount assistant label and streaming Markdown widget
+        assistant_label = Static("◀ Assistant", classes="assistant-label")
+        await conversation.mount(assistant_label)
+        streaming_widget = Markdown("")
+        await conversation.mount(streaming_widget)
+        conversation.scroll_end(animate=False)
+
         try:
-            if self.model_family == "gemini":
-                # Non-streaming for Gemini
-                response = await self._agent.run(
-                    input=query,
-                    session_id=self.session_id,
-                )
-                log.write(Markdown(response.content))
-            else:
-                # Streaming for OpenAI/Anthropic
-                def streamer(part: ToolCall | str) -> None:
-                    if isinstance(part, ToolCall):
-                        delta = _tool_call_delta(part)
-                    else:
-                        delta = part
+            # Buffer for batching string deltas (renders every 10 chunks)
+            pending_chunks: list[str] = []
 
-                    current_response.append(delta)
+            def flush_buffer() -> None:
+                """Flush pending chunks to the streaming widget."""
+                if pending_chunks:
+                    current_response.extend(pending_chunks)
+                    pending_chunks.clear()
+                    streaming_widget.update("".join(current_response))
+                    conversation.scroll_end(animate=False)
 
-                response = await self._agent.stream(
-                    input=query,
-                    callback=streamer,
-                    session_id=self.session_id,
-                )
+            def streamer(part: ToolCall | str | None) -> None:
+                if isinstance(part, ToolCall):
+                    # Flush any pending text first, then render tool call immediately
+                    flush_buffer()
+                    current_response.append(_tool_call_delta(part))
+                    streaming_widget.update("".join(current_response))
+                    conversation.scroll_end(animate=False)
+                elif isinstance(part, str):
+                    # Buffer string deltas, render in batches of 10
+                    pending_chunks.append(part)
+                    if len(pending_chunks) >= 10:
+                        flush_buffer()
+                else:
+                    # Response finished - flush remaining buffer
+                    flush_buffer()
 
-                # Final update with complete response
-                log.write(Markdown("".join(current_response)))
+            response = await self._agent.stream(
+                input=query,
+                callback=streamer,
+                session_id=self.session_id,
+            )
 
-            # Show token usage
+            # Show token usage after the streaming widget
             total_tokens = response.usage.input_tokens + response.usage.output_tokens
-            log.write(Text(f"  [{total_tokens:,} tokens]", style="dim white"))
+            token_label = Static(f"  [{total_tokens:,} tokens]", classes="token-count")
+            await conversation.mount(token_label)
 
         except Exception as e:
             log.write(Text(f"Error: {e}", style="bold red"))
