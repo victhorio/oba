@@ -96,15 +96,15 @@ you are free to make follow-up queries **if necessary** to properly address the 
 
 ## Context
 
-Below are some context from the environment/provided by the CLI harness.
+*Below are some relevant information provided to you by the harness.*
 
-<user>
-The user is called {name}.
-</user>
+Below is the name of the user. Refer to the user using this name.
 
-<today>
-Today is {today}.
-</today>
+<user>{name}</user>
+
+Below is the current date and time for the user.
+
+<now>{now}</now>
 
 Below are the contents of [[AGENTS]], a note written by the user kept in the vault to provide
 information to AI agents (like you) about the vault structure, important knowledge and potentially

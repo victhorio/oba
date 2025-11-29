@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import datetime
 from functools import partial
 from typing import Literal
 
@@ -29,7 +29,7 @@ def new(
     system_prompt = prompts.load(
         prompt_name="system_prompt",
         name=config.user_name,
-        today=date.today().isoformat(),
+        now=datetime.now().strftime("%Y-%m-%d %H:%M (%A)"),
         agents_md=agents_md,
         recent_dailies=recent_dailies,
     )

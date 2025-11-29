@@ -1,4 +1,6 @@
 import argparse
+import sys
+import time
 from typing import Literal
 from uuid import uuid4
 
@@ -10,7 +12,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.widgets import Footer, Header, Input, Markdown, RichLog, Static
+from textual.widgets import Header, Input, Markdown, RichLog, Static
 
 from . import agents, configs
 
@@ -27,7 +29,7 @@ def main() -> int:
     is_test: bool = args.test
     assert isinstance(is_test, bool)
 
-    app = ChatApp(model=model, is_test=is_test)
+    app = ChatApp(model_family=model, is_test=is_test)
     app.run()
     return 0
 
@@ -35,11 +37,37 @@ def main() -> int:
 class ChatApp(App[None]):
     """A TUI chat application for interacting with AI models."""
 
+    ENABLE_COMMAND_PALETTE = False
+
     CSS = """
+    VerticalScroll {
+        scrollbar-size-vertical: 1;
+        scrollbar-color: skyblue 60%;
+        scrollbar-color-hover: skyblue 90%;
+        scrollbar-color-active: skyblue 100%;
+    }
+
+    MarkdownFence{
+        margin-bottom: 1;
+        margin-top: 0;
+        margin-left: 0;
+        margin-right: 0;
+        background: white 10%;
+        & > Label {
+            padding: 0;
+        }
+    }
+
+    #status-bar {
+        height: 1;
+        border: none;
+        color: white;
+        content-align: right middle;
+    }
+
     #conversation {
         height: 1fr;
-        border: solid $primary;
-        padding: 1;
+        border: solid orange;
     }
 
     #message-log {
@@ -47,30 +75,26 @@ class ChatApp(App[None]):
     }
 
     #input-box {
-        dock: bottom;
         height: auto;
         max-height: 5;
-        margin-top: 1;
+        border: solid skyblue;
     }
 
-    .token-count {
-        color: $text-muted;
+    .response-metadata {
+        color: darkgray;
         margin-bottom: 1;
-    }
-
-    .assistant-label {
-        color: $secondary;
-        text-style: bold;
-    }
-
-    .user-label {
-        color: $warning;
-        text-style: bold;
     }
 
     .user-message {
-        color: $warning;
-        margin-bottom: 1;
+        color: white;
+        padding: 1;
+        background: skyblue 10%;
+    }
+
+    .streaming-response {
+        padding-left: 1;
+        padding-right: 1;
+        padding-top: 1;
     }
     """
 
@@ -81,27 +105,36 @@ class ChatApp(App[None]):
 
     def __init__(
         self,
-        model: Literal["gpt", "claude"],
+        model_family: Literal["gpt", "claude"],
         is_test: bool,
     ) -> None:
         super().__init__()
-        self.model_family: Literal["gpt", "claude"] = model
+        self.model_family: Literal["gpt", "claude"] = model_family
         self.is_test = is_test
         self.session_id = str(uuid4())
 
-        # These will be initialized in on_mount
+        # these will be initialized in on_mount
         self._agent: Agent | None = None
         self._client: httpx.AsyncClient | None = None
 
-        # Track if we're currently waiting for a response
+        # tracks if we're currently waiting for a response
         self._is_processing = False
 
+        # tracks the current response string that's being streamed in when a response is being
+        # created
+        self._current_response = ""
+
+        # buffer for string deltas that are being streamed in when a response is being created
+        # since we only want to actually render them in batch for performance reasons
+        self._delta_buffer: list[str] = []
+        self._delta_buffer_size = 10
+
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Header(show_clock=True)
         with VerticalScroll(id="conversation"):
             yield RichLog(id="message-log", highlight=True, markup=True, wrap=True)
         yield Input(placeholder="Type your message...", id="input-box")
-        yield Footer()
+        yield Static("0 tokens • $0.000 tokens cost • $0.000 tool cost", id="status-bar")
 
     async def on_mount(self) -> None:
         """Initialize the agent and client when the app mounts."""
@@ -111,23 +144,15 @@ class ChatApp(App[None]):
 
         # Update the header with model info
         self.title = f"oba • {self._agent.model.model_id}"
-        self.sub_title = "AI Chat"
 
         # Focus the input box
         self.query_one("#input-box", Input).focus()
-
-        # Welcome message
-        log = self.query_one("#message-log", RichLog)
-        log.write(Text(f"Using model: {self._agent.model.model_id}", style="bold white"))
-        log.write(Text("Type your message below. Press Ctrl+C to exit.\n", style="dim"))
 
     async def on_unmount(self) -> None:
         """Clean up resources when the app unmounts."""
         if self._agent and self._agent.memory:
             usage = self._agent.memory.get_usage(self.session_id)
             # Print session stats to stderr so they appear after app closes
-            import sys
-
             print("\n╭─ Session Stats ─────────────────────╮", file=sys.stderr)
             print(f"│ Input tokens:        {usage.input_tokens:>13,}  │", file=sys.stderr)
             print(f"│ Cached input tokens: {usage.input_tokens_cached:>13,}  │", file=sys.stderr)
@@ -163,9 +188,7 @@ class ChatApp(App[None]):
         conversation = self.query_one("#conversation", VerticalScroll)
 
         # Display user message by mounting widgets (preserves order with responses)
-        user_label = Static("▶ You", classes="user-label")
         user_message = Static(query, classes="user-message")
-        await conversation.mount(user_label)
         await conversation.mount(user_message)
 
         # Scroll to bottom
@@ -187,54 +210,32 @@ class ChatApp(App[None]):
         log = self.query_one("#message-log", RichLog)
         conversation = self.query_one("#conversation", VerticalScroll)
 
-        # Track the current response for streaming
-        current_response: list[str] = []
-
-        # Mount assistant label and streaming Markdown widget
-        assistant_label = Static("◀ Assistant", classes="assistant-label")
-        await conversation.mount(assistant_label)
-        streaming_widget = Markdown("")
+        # Mount streaming Markdown widget
+        streaming_widget = Markdown("", classes="streaming-response")
         await conversation.mount(streaming_widget)
         conversation.scroll_end(animate=False)
 
+        # as a sanity check, let's make sure we're starting off with clear state
+        self._current_response = ""
+        self._delta_buffer.clear()
+
         try:
-            # Buffer for batching string deltas (renders every 10 chunks)
-            pending_chunks: list[str] = []
-
-            def flush_buffer() -> None:
-                """Flush pending chunks to the streaming widget."""
-                if pending_chunks:
-                    current_response.extend(pending_chunks)
-                    pending_chunks.clear()
-                    streaming_widget.update("".join(current_response))
-                    conversation.scroll_end(animate=False)
-
-            def streamer(part: ToolCall | str | None) -> None:
-                if isinstance(part, ToolCall):
-                    # Flush any pending text first, then render tool call immediately
-                    flush_buffer()
-                    current_response.append(_tool_call_delta(part))
-                    streaming_widget.update("".join(current_response))
-                    conversation.scroll_end(animate=False)
-                elif isinstance(part, str):
-                    # Buffer string deltas, render in batches of 10
-                    pending_chunks.append(part)
-                    if len(pending_chunks) >= 10:
-                        flush_buffer()
-                else:
-                    # Response finished - flush remaining buffer
-                    flush_buffer()
-
-            response = await self._agent.stream(
+            tic = time.perf_counter()
+            _ = await self._agent.stream(
                 input=query,
-                callback=streamer,
+                callback=lambda delta: self._callback_renderer(delta, streaming_widget),
                 session_id=self.session_id,
             )
+            toc = time.perf_counter()
 
-            # Show token usage after the streaming widget
-            total_tokens = response.usage.input_tokens + response.usage.output_tokens
-            token_label = Static(f"  [{total_tokens:,} tokens]", classes="token-count")
-            await conversation.mount(token_label)
+            self._update_status_bar()
+
+            # Show response metadata after each response
+            response_metadata = Static(
+                f"  [took {toc - tic:.2f}s]",
+                classes="response-metadata",
+            )
+            await conversation.mount(response_metadata)
 
         except Exception as e:
             log.write(Text(f"Error: {e}", style="bold red"))
@@ -247,8 +248,45 @@ class ChatApp(App[None]):
             input_widget.placeholder = "Type your message..."
             input_widget.focus()
 
-            # Scroll to bottom
-            conversation.scroll_end(animate=False)
+    def _flush_delta_buffer(self, target_widget: Markdown) -> None:
+        if self._delta_buffer:
+            self._current_response += "".join(self._delta_buffer)
+            self._delta_buffer.clear()
+            target_widget.update(self._current_response)
+
+    def _callback_renderer(self, delta: ToolCall | str | None, target_widget: Markdown) -> None:
+        if isinstance(delta, ToolCall):
+            # we immediately want to render tool calls, but first we need to make sure
+            # we flush the buffer if there's anything there just in case
+            self._flush_delta_buffer(target_widget)
+
+            self._current_response += _tool_call_delta(delta)
+            target_widget.update(self._current_response)
+
+        elif isinstance(delta, str):
+            # we only render string deltas once the buffer becomes full
+            self._delta_buffer.append(delta)
+            if len(self._delta_buffer) >= self._delta_buffer_size:
+                self._flush_delta_buffer(target_widget)
+
+        elif delta is None:
+            # response finished - flush remaining buffer
+            self._flush_delta_buffer(target_widget)
+
+        else:
+            # the line below should be greyed out by the LSP based on type checking
+            raise ValueError(f"Unexpected delta type: {type(delta)}")
+
+    def _update_status_bar(self) -> None:
+        status_bar = self.query_one("#status-bar", Static)
+
+        assert self._agent is not None
+        assert self._agent.memory is not None
+        usage = self._agent.memory.get_usage(self.session_id)
+
+        status_bar.update(
+            f"{usage.input_tokens:,} tokens • ${usage.total_cost:.3f} tokens cost • ${usage.tool_costs:.3f} tool cost"
+        )
 
     async def action_quit(self) -> None:
         """Handle quit action."""
@@ -256,14 +294,14 @@ class ChatApp(App[None]):
 
 
 def _tool_call_delta(part: ToolCall) -> str:
-    prefix = f"\n```\n{part.name}(\n"
-    suffix = "\n)\n```\n\n"
+    prefix = f"```python\n{part.name}(\n"
+    suffix = "\n)\n```\n"
 
     lines: list[str] = []
     for k, v in part.parsed_args.items():
         sv = str(v)
         if len(sv) > 80:
             sv = sv[:80] + "..."
-        lines.append(f"    {k} = {sv}")
+        lines.append(f"    {k} = {repr(sv)}")
 
     return prefix + "\n".join(lines) + suffix
