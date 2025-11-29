@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import httpx
 from ag import Agent
+from ag.common import Usage
 from ag.models import ToolCall
 from rich.text import Text
 from textual import events, work
@@ -37,8 +38,6 @@ def main() -> int:
 
 
 class ChatApp(App[None]):
-    """A TUI chat application for interacting with AI models."""
-
     ENABLE_COMMAND_PALETTE = False
 
     CSS = """
@@ -139,6 +138,11 @@ class ChatApp(App[None]):
         self._delta_buffer: list[str] = []
         self._delta_buffer_size = 10
 
+        # usage information for status bar
+        self._total_tokens = 0
+        self._token_cost = 0.0
+        self._tool_cost = 0.0
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with VerticalScroll(id="conversation"):
@@ -147,22 +151,19 @@ class ChatApp(App[None]):
         yield Static("0 tokens • $0.000 tokens cost • $0.000 tool cost", id="status-bar")
 
     async def on_mount(self) -> None:
-        """Initialize the agent and client when the app mounts."""
         self._client = httpx.AsyncClient()
         config = configs.load(self.is_test)
         self._agent = agents.new(config, self.model_family, self._client)
-
-        # Update the header with model info
         self.title = f"oba • {self._agent.model.model_id}"
 
-        # Focus the input box
+        # focus on input box on startup
         self.query_one("#input-box", ChatTextArea).focus()
 
     async def on_unmount(self) -> None:
-        """Clean up resources when the app unmounts."""
         if self._agent and self._agent.memory:
             usage = self._agent.memory.get_usage(self.session_id)
-            # Print session stats to stderr so they appear after app closes
+
+            # print to stderr to make sure they appear on terminal/cli after we exit
             print("\n╭─ Session Stats ─────────────────────╮", file=sys.stderr)
             print(f"│ Input tokens:        {usage.input_tokens:>13,}  │", file=sys.stderr)
             print(f"│ Cached input tokens: {usage.input_tokens_cached:>13,}  │", file=sys.stderr)
@@ -175,17 +176,13 @@ class ChatApp(App[None]):
             await self._client.aclose()
 
     async def on_chat_text_area_submitted(self, event: ChatTextArea.Submitted) -> None:
-        """Handle user input submission."""
         query = event.value.strip()
         input_widget = event.text_area
-
-        # Clear the input
         input_widget.clear()
 
         if not query:
             return
 
-        # Handle exit commands
         if query.lower() in ("exit", "quit", ":q"):
             self.exit()
             return
@@ -193,28 +190,24 @@ class ChatApp(App[None]):
         if self._is_processing:
             return
 
-        assert self._agent is not None
-
         conversation = self.query_one("#conversation", VerticalScroll)
 
-        # Display user message by mounting widgets (preserves order with responses)
         user_message = Static(query, classes="user-message")
         await conversation.mount(user_message)
 
-        # Scroll to bottom
+        # if the user sent something, we want to scroll down to it
         conversation.scroll_end(animate=False)
 
-        # Start processing
+        # set the correct states before running
         self._is_processing = True
         input_widget.placeholder = "Waiting for response..."
         input_widget.disabled = True
 
-        # Run the AI response in a worker
+        # run the query in a background worker
         self._run_query(query)
 
     @work(exclusive=True)
     async def _run_query(self, query: str) -> None:
-        """Run the AI query in a background worker."""
         assert self._agent is not None
 
         log = self.query_one("#message-log", RichLog)
@@ -231,16 +224,16 @@ class ChatApp(App[None]):
 
         try:
             tic = time.perf_counter()
-            _ = await self._agent.stream(
+            response = await self._agent.stream(
                 input=query,
                 callback=lambda delta: self._callback_renderer(delta, streaming_widget),
                 session_id=self.session_id,
             )
             toc = time.perf_counter()
 
-            self._update_status_bar()
+            self._update_status_bar(response.usage)
 
-            # Show response metadata after each response
+            # show response metadata after each response
             response_metadata = Static(
                 f"  [took {toc - tic:.2f}s]",
                 classes="response-metadata",
@@ -287,19 +280,20 @@ class ChatApp(App[None]):
             # the line below should be greyed out by the LSP based on type checking
             raise ValueError(f"Unexpected delta type: {type(delta)}")
 
-    def _update_status_bar(self) -> None:
+    def _update_status_bar(self, usage: Usage) -> None:
         status_bar = self.query_one("#status-bar", Static)
 
-        assert self._agent is not None
-        assert self._agent.memory is not None
-        usage = self._agent.memory.get_usage(self.session_id)
+        self._total_tokens += usage.input_tokens + usage.output_tokens
+        self._token_cost += usage.total_cost
+        self._tool_cost += usage.tool_costs
 
         status_bar.update(
-            f"{usage.input_tokens:,} tokens • ${usage.total_cost:.3f} tokens cost • ${usage.tool_costs:.3f} tool cost"
+            f"{self._total_tokens:,} [green](+ {usage.input_tokens + usage.output_tokens:,})[/green] tokens"
+            f" • ${self._token_cost:.3f} [green](+ ${usage.total_cost:.3f})[/green] tokens cost"
+            f" • ${self._tool_cost:.3f} [green](+ ${usage.tool_costs:.3f})[/green] tool cost"
         )
 
     async def action_quit(self) -> None:
-        """Handle quit action."""
         self.exit()
 
 
@@ -308,8 +302,6 @@ class ChatTextArea(TextArea):
 
     @dataclass
     class Submitted(Message):
-        """Posted when the user presses Enter to submit their message."""
-
         text_area: ChatTextArea
         value: str
 
