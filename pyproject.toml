@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.12.0",
     "rich>=14.2.0",
     "ag",  # from workspace in ./packages/ag
+    "textual>=6.6.0",
 ]
 
 [project.scripts]
