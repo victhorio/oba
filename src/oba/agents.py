@@ -37,7 +37,7 @@ def new(
     if model_family == "gpt":
         model = OpenAIModel(
             model_id="gpt-5.1",
-            reasoning_effort="low",
+            reasoning_effort="medium",
         )
     elif model_family == "claude":
         model = AnthropicModel(
@@ -106,12 +106,18 @@ def create_read_note_tool(vault_path: str) -> Tool:
 
 
 def create_list_dir_tool(vault_path: str) -> Tool:
+    IGNORED_ENTRIES = [".DS_Store", ".obsidian", ".trash"]
+
     def callable(sub_path: str) -> str:
         full_path = os.path.join(vault_path, sub_path)
         if not os.path.isdir(full_path):
             return f"[system message: directory '{sub_path}' does not exist]"
 
-        contents = [entry.name + ("/" if entry.is_dir() else "") for entry in os.scandir(full_path)]
+        contents = [
+            entry.name + ("/" if entry.is_dir() else "")
+            for entry in os.scandir(full_path)
+            if entry.name not in IGNORED_ENTRIES
+        ]
         return "\n".join(contents)
 
     return Tool(spec=ListDir, callable=callable)

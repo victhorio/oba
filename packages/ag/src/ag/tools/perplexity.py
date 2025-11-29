@@ -49,7 +49,7 @@ def create_agentic_web_search_tool(client: httpx.AsyncClient) -> Tool:
     if not api_key:
         raise RuntimeError("PERPLEXITY_API_KEY environment variable is not set")
 
-    async def _agentic_web_search(query: str, enhanced: bool) -> tuple[str, float]:
+    async def _agentic_web_search(prompt: str, reasoning: bool) -> tuple[str, float]:
         response = await client.post(
             _PERPLEXITY_CHAT_URL,
             headers={
@@ -57,18 +57,18 @@ def create_agentic_web_search_tool(client: httpx.AsyncClient) -> Tool:
                 "Authorization": f"Bearer {api_key}",
             },
             json={
-                "model": "sonar" if not enhanced else "sonar-reasoning-pro",
+                "model": "sonar-pro" if not reasoning else "sonar-reasoning-pro",
                 "messages": [
                     {
                         "role": "user",
-                        "content": query,
+                        "content": prompt,
                     }
                 ],
                 "web_search_options": {
-                    "search_context_size": "low" if not enhanced else "medium",
+                    "search_context_size": "low" if not reasoning else "medium",
                 },
             },
-            timeout=20 if not enhanced else 45,
+            timeout=30 if not reasoning else 60,
         )
 
         if not response.is_success:
@@ -88,7 +88,7 @@ def create_agentic_web_search_tool(client: httpx.AsyncClient) -> Tool:
         search_results: list[dict[str, str]] = data["search_results"]
         content: str = data["choices"][0]["message"]["content"]
 
-        if enhanced:
+        if reasoning:
             # we need to strip the `<think>...</think>` block of the content
             marker = "</think>"
             marker_idx = content.find(marker)
@@ -126,21 +126,24 @@ class WebSearch(BaseModel):
 
 class AgenticWebSearch(BaseModel):
     """
-    Use this tool to have an agent search the web for information based on a query.
-    The agent will read the actual contents itself and return compiled/relevant information in a
-    digestible format, as well as provide references.
+    This tool allows you to have an agent search the web for information based on a prompt.
+    This leverages Perplexity's grounded Sonar LLM to search the web and provide a useful answer
+    grounded in the search results that are also included in the response.
 
-    The `enhanced` flag can help enable more capable reasoning agent that can read/search more
-    sources, and provide more insighful answers.  Use the appropriate flag for the task at hand.
+    Use `prompt` as a message to the Sonar LLM indicating its task/the answer it needs to provide.
 
-    Examples of simple queries: "latest news about apple", "what's the top 5 largest market cap companies", etc.
-    Examples of enhanced queries: "what's the likelihood of Bolsonaro going to jail?", "what's the expected impact of the US government shutdown?", etc.
+    Use `reasoning` to enable a more capable reasoning agent that can search through more sources
+    and provide more built-in inference on top of the search results. This is suitable for
+    reasoning, inference and speculation on top of the search results - not for simple factual
+    queries/information retrieval.
     """
 
-    query: str = Field(description="The query/question/request for the agent to search the web for")
+    prompt: str = Field(
+        description="The prompt for the agent to use to search the web and provide a useful answer to you"
+    )
 
-    enhanced: bool = Field(
-        description="Whether to enable a more capable reasoning agent that can read/search more sources and provide more insightful answers",
+    reasoning: bool = Field(
+        description="Whether to enable a more capable reasoning agent that can search through more sources and provide more built-in inference on top of the search results",
     )
 
 
