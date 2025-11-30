@@ -3,9 +3,11 @@ import os
 import subprocess
 from functools import partial
 
+from ag.embeddings.openai import OpenAIEmbeddings
 from ag.tool import Tool
 from pydantic import BaseModel, Field
 
+from ..semantic import conn_create, embeddings_store, index_create, notes_search
 from ..vault import read_note
 
 
@@ -66,6 +68,21 @@ class RipGrep(BaseModel):
 
     case_sensitive: bool = Field(
         description="Whether to perform a case-sensitive search.",
+    )
+
+
+class SemanticSearch(BaseModel):
+    """
+    Use this function to search for note names in the vault using semantic search. The function
+    will return the top K note names whose content is the most similar to the "query text".
+    """
+
+    query_text: str = Field(
+        description="The text to search for in the vault. Usually a very brief natural sounding sentence that describes the type of content you're looking for.",
+    )
+
+    k: int = Field(
+        description="The number of note names to return.",
     )
 
 
@@ -152,3 +169,16 @@ def create_ripgrep_tool(vault_path: str) -> Tool:
         return "\n".join(result_lines)
 
     return Tool(spec=RipGrep, callable=callable)
+
+
+async def create_semantic_search_tool(vault_path: str, model: OpenAIEmbeddings) -> Tool:
+    conn = conn_create()
+
+    index = await index_create(vault_path, model)
+    embeddings_store(conn, index)
+
+    async def callable(query_text: str, k: int) -> str:
+        results = await notes_search(conn, index, query_text, k)
+        return "\n".join(results)
+
+    return Tool(spec=SemanticSearch, callable=callable)

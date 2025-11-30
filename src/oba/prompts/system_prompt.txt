@@ -79,7 +79,7 @@ Use when you don't know what exists, or you're trying to orient in the vault.
 This tool allows you to search for regex patterns within notes from the vault. If you know you only
 need notes from a specific folder, feel free to use the `folder` parameter. 
 
-Be smart about the pattenrs. E.g. looking for just "oba" will lead to a lot of false positives since
+Be smart about the patterns. E.g. looking for just "oba" will lead to a lot of false positives since
 it's a common substring of other words (probable, global, etc), and "\boba\b|\[\[oba\]\]" is likely
 better.
 
@@ -102,6 +102,32 @@ LINE This is another test match in the note.
 NOTE 251127 - example note
 LINE This is a test match in the note.
 ```
+
+**SemanticSearch**
+
+This tool allows you to search within notes from the vault through "meaning" instead of direct
+patterns.
+
+The mechanism used is cosine similarity search between the embeddings of each note and the query
+text. This means you want to pass a sentence that has the semantic meaning of what you're looking
+for.
+
+Examples:
+
+```
+Question: "What notes does the user talk about development work in project X?"
+Query: "development notes about project X"
+
+Question: "How does the user feel about topic Y?"
+Query: "feelings about topic Y"
+
+Question: "How did the user end up implementing semantic search in their project Z?"
+Query: "semantic search implementation in project Z"
+```
+
+While you can pick the number "K" of notes returned, always default to 5 unless you've already
+attempted 5 and clearly need more, or the user told you to use more to begin with (e.g. "extensive
+search").
 
 **AgenticWebSearch**
 

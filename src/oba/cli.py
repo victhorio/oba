@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 from typing import Literal
 
 import httpx
@@ -10,14 +11,18 @@ from .tui import ObaTUI
 
 
 def main() -> int:
+    return asyncio.run(main_async())
+
+
+async def main_async() -> int:
     model, is_test, session_id = _parse_args()
 
     config = config_load(is_test)
     client = httpx.AsyncClient()
-    agent = agent_create(config, model, client)
+    agent = await agent_create(config, model, client)
 
     app = ObaTUI(agent=agent, session_id=session_id)
-    usage = app.run()
+    usage = await app.run_async()
 
     if usage:
         print("╭─ Session Stats ─────────────────────╮")

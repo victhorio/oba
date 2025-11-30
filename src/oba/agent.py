@@ -4,16 +4,22 @@ from typing import Literal
 
 import httpx
 from ag import Agent
+from ag.embeddings.openai import OpenAIEmbeddings
 from ag.memory import SQLiteMemory
 from ag.models import AnthropicModel, OpenAIModel
 from ag.tools import create_agentic_web_search_tool
 
 from oba import prompts, vault
 from oba.configs import Config, special_dir_path
-from oba.tools.fs import create_list_dir_tool, create_read_note_tool, create_ripgrep_tool
+from oba.tools.fs import (
+    create_list_dir_tool,
+    create_read_note_tool,
+    create_ripgrep_tool,
+    create_semantic_search_tool,
+)
 
 
-def agent_create(
+async def agent_create(
     config: Config,
     model_family: Literal["gpt", "claude"],
     client: httpx.AsyncClient,
@@ -49,6 +55,10 @@ def agent_create(
 
     memory = SQLiteMemory(db_path=os.path.join(special_dir_path(config), "memory.db"))
 
+    print("Indexing all notes for semantic search...")
+    embedding_model = OpenAIEmbeddings(model_id="text-embedding-3-small")
+    semantic_search_tool = await create_semantic_search_tool(config.vault_path, embedding_model)
+
     return Agent(
         model=model,
         memory=memory,
@@ -57,6 +67,7 @@ def agent_create(
             create_read_note_tool(config.vault_path),
             create_list_dir_tool(config.vault_path),
             create_ripgrep_tool(config.vault_path),
+            semantic_search_tool,
             create_agentic_web_search_tool(client),
         ],
         client=client,

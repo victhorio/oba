@@ -14,7 +14,7 @@ class EmbeddingsIndex:
     index: dict[int, str] = field(factory=dict)
 
 
-async def create_embeddings_index(vault_path: str, model: OpenAIEmbeddings) -> EmbeddingsIndex:
+async def index_create(vault_path: str, model: OpenAIEmbeddings) -> EmbeddingsIndex:
     """
     Based on the notes index, creates a map of {note name -> embedding} for the given vault.
     """
