@@ -1,8 +1,16 @@
 # oba
 
-Simple terminal AI assistant with access to the Obsidian vault.
+Early-stage terminal AI assisant connected to an Obsidian vault. Expect rough edges.
 
-For now, mostly for playing with things.
+Two interesting components live in this repo:
 
-See `./oba/ag` for the "internal" framework library for interfacing with LLM APIs (no frameworks
-and client libs used, also for the purposes of playing around).
+- `src/oba/`: the CLI agent + Textual TUI app
+- `packages/ag/`: a minimal LLM framework used by the app ("we have agno at home")
+
+Some of the things already in here:
+
+- OpenAI + Anthropic integration without vendor SDKs through `ag`
+- Textual-based TUI for chat
+- Persistent SQLite-backed session memory
+- Agent tools for exploring an Obsidian vault (read notes, list dirs, ripgrep)
+- Agent tool for performing Perplexity/Sonar backed web search
