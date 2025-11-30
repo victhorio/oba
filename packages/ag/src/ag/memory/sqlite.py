@@ -8,6 +8,7 @@ from typing import Sequence, override
 
 from ag.common import Usage
 from ag.memory.base import Memory
+from ag.memory.ephemeral import EphemeralMemory
 from ag.models.message import Content, Message, Reasoning, ToolCall, ToolResult
 
 
@@ -19,7 +20,7 @@ class _MessageType(StrEnum):
 
 
 class SQLiteMemory(Memory):
-    def __init__(self, db_path: str | Path):
+    def __init__(self, db_path: str | Path, ephemeral_clone: bool = True):
         path = Path(db_path).expanduser()
         if path.as_posix() != ":memory:":
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -30,6 +31,8 @@ class SQLiteMemory(Memory):
         self._conn.execute("PRAGMA journal_mode=WAL;")
 
         self._init_schema()
+
+        self._ephemeral_copy = EphemeralMemory() if ephemeral_clone else None
 
     def _init_schema(self) -> None:
         with self._conn:
@@ -66,6 +69,10 @@ class SQLiteMemory(Memory):
 
     @override
     def get_messages(self, session_id: str) -> Sequence[Message]:
+        if self._ephemeral_copy:
+            if messages := self._ephemeral_copy.get_messages(session_id):
+                return messages
+
         with self._conn:
             rows = self._conn.execute(
                 """
@@ -78,10 +85,27 @@ class SQLiteMemory(Memory):
                 (session_id,),
             ).fetchall()
 
-        return [self._deserialize_message(row) for row in rows]
+        messages = [self._deserialize_message(row) for row in rows]
+
+        if self._ephemeral_copy:
+            # If _ephemeral_copy is enabled but we reached here, it's because this session was
+            # not yet loaded into the copy. So let's also fetch the information data and copy
+            # this session into the ephemeral version.
+            usage = self.get_usage(session_id)
+            self._ephemeral_copy.extend(session_id, messages, usage)
+
+        return messages
 
     @override
     def get_usage(self, session_id: str) -> Usage:
+        if self._ephemeral_copy:
+            usage = self._ephemeral_copy.get_usage(session_id)
+            # the method will return a truthy but zero'd out Usage object if it was not found
+            # in memory, so we actually need to check the contents. thankfully, it's impossible
+            # for an existing usage to have 0 input tokens
+            if usage.input_tokens > 0:
+                return usage
+
         with self._conn:
             row = self._conn.execute(
                 """
@@ -110,6 +134,9 @@ class SQLiteMemory(Memory):
         messages: Sequence[Message],
         usage: Usage,
     ) -> None:
+        if self._ephemeral_copy:
+            self._ephemeral_copy.extend(session_id, messages, usage)
+
         serialized_messages = [self._serialize_message(msg) for msg in messages]
 
         with self._conn:
