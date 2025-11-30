@@ -17,7 +17,8 @@ from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.widgets import Header, Markdown, RichLog, Static, TextArea
 
-from . import agents, configs
+from .agent import agent_create
+from .configs import config_load, update_global_usage_history
 
 
 def main() -> int:
@@ -33,11 +34,15 @@ def main() -> int:
     assert isinstance(is_test, bool)
 
     app = ChatApp(model_family=model, is_test=is_test)
-    app.run()
+    usage = app.run()
+
+    if usage:
+        update_global_usage_history(usage)
+
     return 0
 
 
-class ChatApp(App[None]):
+class ChatApp(App[Usage]):
     ENABLE_COMMAND_PALETTE = False
 
     CSS = """
@@ -152,8 +157,8 @@ class ChatApp(App[None]):
 
     async def on_mount(self) -> None:
         self._client = httpx.AsyncClient()
-        config = configs.load(self.is_test)
-        self._agent = agents.new(config, self.model_family, self._client)
+        config = config_load(self.is_test)
+        self._agent = agent_create(config, self.model_family, self._client)
         self.title = f"oba • {self._agent.model.model_id}"
 
         # focus on input box on startup
@@ -162,6 +167,8 @@ class ChatApp(App[None]):
     async def on_unmount(self) -> None:
         if self._agent and self._agent.memory:
             usage = self._agent.memory.get_usage(self.session_id)
+
+            self._return_value = usage
 
             # print to stderr to make sure they appear on terminal/cli after we exit
             print("\n╭─ Session Stats ─────────────────────╮", file=sys.stderr)

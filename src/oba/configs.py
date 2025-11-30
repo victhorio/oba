@@ -3,14 +3,18 @@ import json
 import shutil
 import sys
 import tempfile
+import time
 from functools import lru_cache
 from json import JSONDecodeError
 from pathlib import Path
 
+from ag.common import Usage
 from attrs import asdict, define
 from rich import print
 
-CONFIG_PATH = Path.home() / ".config" / "oba" / "settings.json"
+CONFIG_HOME = Path.home() / ".config" / "oba"
+CONFIG_PATH = CONFIG_HOME / "settings.json"
+USAGE_PATH = CONFIG_HOME / "usage.json"
 
 
 @define
@@ -20,7 +24,7 @@ class Config:
 
 
 @lru_cache
-def load(is_test: bool) -> Config:
+def config_load(is_test: bool) -> Config:
     if is_test:
         return load_test_config()
 
@@ -35,6 +39,29 @@ def load(is_test: bool) -> Config:
 
     _write_to_path(config, CONFIG_PATH)
     return config
+
+
+def update_global_usage_history(usage: Usage) -> None:
+    if usage.input_tokens == 0:
+        return
+
+    payload: dict[str, object] = asdict(usage)
+    payload["ts"] = int(time.time())
+
+    if USAGE_PATH.exists():
+        with open(USAGE_PATH, "r") as f:
+            usage_history: list[dict[str, object]] = json.load(f)
+
+        usage_history.append(payload)
+        with open(USAGE_PATH, "w") as f:
+            json.dump(usage_history, f)
+
+        print("Updated global usage history")
+    else:
+        with open(USAGE_PATH, "w") as f:
+            json.dump([payload], f)
+
+        print("Created global usage history")
 
 
 def load_test_config() -> Config:
