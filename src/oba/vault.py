@@ -1,7 +1,9 @@
 import os
+import time
 from functools import cache
 from pathlib import Path
 
+from ag.embeddings.openai import OpenAIEmbeddings
 from pydantic import BaseModel
 
 
@@ -72,11 +74,46 @@ def _build_notes_index(vault_path: str) -> dict[str, str]:
     index: dict[str, str] = dict()
 
     for root, _, files in os.walk(vault_path):
+        if ".obsidian" in root or ".trash" in root or ".oba" in root:
+            continue
+
         for file in files:
             if file.endswith(".md"):
                 if file in index:
                     raise RuntimeError(f"found two notes with the same name: {file}, fix the code")
+
+                # skip empty files
+                if not os.path.getsize(os.path.join(root, file)):
+                    continue
+
                 filename = file[:-3]
                 index[filename] = os.path.join(root, file)
 
     return index
+
+
+async def create_embeddings_index(
+    vault_path: str, model: OpenAIEmbeddings
+) -> dict[str, list[float]]:
+    """
+    Based on the notes index, creates a map of {note name -> embedding} for the given vault.
+    """
+
+    notes_index = _build_notes_index(vault_path)
+    notes_content: list[tuple[str, str]] = [
+        (note_name, read_note(vault_path, note_name)) for note_name in notes_index
+    ]
+
+    tic = time.time()
+    embeddings = await model.embed(
+        inputs=[contents for _, contents in notes_content],
+    )
+    toc = time.time()
+    print(f"Embedding time: {toc - tic} seconds")
+    print(f"Embedding cost: ${embeddings.dollar_cost:.6f}")
+
+    embeddings_index: dict[str, list[float]] = {
+        note_name: vector for note_name, vector in zip(notes_index.keys(), embeddings.vectors)
+    }
+
+    return embeddings_index

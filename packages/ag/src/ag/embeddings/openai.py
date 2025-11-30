@@ -9,7 +9,7 @@ EmbeddingModelID = Literal["text-embedding-3-small", "text-embedding-3-large"]
 
 @define
 class EmbeddingsResult:
-    embeddings: list[list[float]]
+    vectors: list[list[float]]
     dollar_cost: float
 
 
@@ -49,11 +49,17 @@ class OpenAIEmbeddings:
             json=payload,
         )
 
-        response.raise_for_status()
+        if not response.is_success:
+            try:
+                response_dict = response.json()
+                print(response_dict)
+            except Exception:
+                pass
+            response.raise_for_status()
 
         response_dict = response.json()
         return EmbeddingsResult(
-            embeddings=[data["embedding"] for data in response_dict["data"]],
+            vectors=[data["embedding"] for data in response_dict["data"]],
             dollar_cost=_COST_PER_MODEL[self.model_id] * response_dict["usage"]["prompt_tokens"],
         )
 
