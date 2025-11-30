@@ -1,9 +1,7 @@
 import os
-import time
 from functools import cache
 from pathlib import Path
 
-from ag.embeddings.openai import OpenAIEmbeddings
 from pydantic import BaseModel
 
 
@@ -56,7 +54,7 @@ def _get_daily_folder(vault_path: Path) -> Path:
 
 
 def read_note(vault_path: str, note_name: str) -> str:
-    notes_index = _build_notes_index(vault_path)
+    notes_index = notes_index_build(vault_path)
     if note_name not in notes_index:
         raise FileNotFoundError(f"note '{note_name}' not found")
 
@@ -65,7 +63,7 @@ def read_note(vault_path: str, note_name: str) -> str:
 
 
 @cache
-def _build_notes_index(vault_path: str) -> dict[str, str]:
+def notes_index_build(vault_path: str) -> dict[str, str]:
     """
     Builds a map of {note name -> note file path} for the given vault.
     """
@@ -90,30 +88,3 @@ def _build_notes_index(vault_path: str) -> dict[str, str]:
                 index[filename] = os.path.join(root, file)
 
     return index
-
-
-async def create_embeddings_index(
-    vault_path: str, model: OpenAIEmbeddings
-) -> dict[str, list[float]]:
-    """
-    Based on the notes index, creates a map of {note name -> embedding} for the given vault.
-    """
-
-    notes_index = _build_notes_index(vault_path)
-    notes_content: list[tuple[str, str]] = [
-        (note_name, read_note(vault_path, note_name)) for note_name in notes_index
-    ]
-
-    tic = time.time()
-    embeddings = await model.embed(
-        inputs=[contents for _, contents in notes_content],
-    )
-    toc = time.time()
-    print(f"Embedding time: {toc - tic} seconds")
-    print(f"Embedding cost: ${embeddings.dollar_cost:.6f}")
-
-    embeddings_index: dict[str, list[float]] = {
-        note_name: vector for note_name, vector in zip(notes_index.keys(), embeddings.vectors)
-    }
-
-    return embeddings_index
