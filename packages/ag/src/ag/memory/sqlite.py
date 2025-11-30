@@ -58,7 +58,8 @@ class SQLiteMemory(Memory):
                     input_tokens_cached INTEGER NOT NULL DEFAULT 0,
                     output_tokens INTEGER NOT NULL DEFAULT 0,
                     total_cost REAL NOT NULL DEFAULT 0.0,
-                    tool_costs REAL NOT NULL DEFAULT 0.0
+                    tool_costs REAL NOT NULL DEFAULT 0.0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 """
             )
@@ -132,7 +133,8 @@ class SQLiteMemory(Memory):
                     input_tokens_cached = usage.input_tokens_cached + excluded.input_tokens_cached,
                     output_tokens = usage.output_tokens + excluded.output_tokens,
                     total_cost = usage.total_cost + excluded.total_cost,
-                    tool_costs = usage.tool_costs + excluded.tool_costs;
+                    tool_costs = usage.tool_costs + excluded.tool_costs,
+                    created_at = excluded.created_at;
                 """,
                 (
                     session_id,

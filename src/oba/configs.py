@@ -1,20 +1,16 @@
 import atexit
 import json
+import os
 import shutil
 import sys
 import tempfile
-import time
 from functools import lru_cache
 from json import JSONDecodeError
-from pathlib import Path
 
-from ag.common import Usage
 from attrs import asdict, define
 from rich import print
 
-CONFIG_HOME = Path.home() / ".config" / "oba"
-CONFIG_PATH = CONFIG_HOME / "settings.json"
-USAGE_PATH = CONFIG_HOME / "usage.json"
+CONFIG_FILE_PATH = os.path.expanduser("~/.config/oba/settings.json")
 
 
 @define
@@ -28,7 +24,7 @@ def config_load(is_test: bool) -> Config:
     if is_test:
         return load_test_config()
 
-    if config_from_path := _read_from_path(CONFIG_PATH):
+    if config_from_path := _read_from_path(CONFIG_FILE_PATH):
         return config_from_path
 
     try:
@@ -37,37 +33,21 @@ def config_load(is_test: bool) -> Config:
         print("\nExiting.")
         sys.exit(1)
 
-    _write_to_path(config, CONFIG_PATH)
+    _write_to_path(config, CONFIG_FILE_PATH)
     return config
 
 
-def update_global_usage_history(usage: Usage) -> None:
-    if usage.input_tokens == 0:
-        return
-
-    payload: dict[str, object] = asdict(usage)
-    payload["ts"] = int(time.time())
-
-    if USAGE_PATH.exists():
-        with open(USAGE_PATH, "r") as f:
-            usage_history: list[dict[str, object]] = json.load(f)
-
-        usage_history.append(payload)
-        with open(USAGE_PATH, "w") as f:
-            json.dump(usage_history, f)
-
-        print("Updated global usage history")
-    else:
-        with open(USAGE_PATH, "w") as f:
-            json.dump([payload], f)
-
-        print("Created global usage history")
+def special_dir_path(config: Config) -> str:
+    path = os.path.join(config.vault_path, ".oba")
+    if not os.path.isdir(path):
+        os.makedirs(path)
+    return path
 
 
 def load_test_config() -> Config:
-    vault_example = Path("vault_example")
+    example_vault_path = "vault_example"
 
-    if not vault_example.is_dir():
+    if not os.path.isdir(example_vault_path):
         print(
             "[red][bold]Error:[/bold] --test mode can only be run in the same directory as `vault_example/`[/red]"
         )
@@ -75,7 +55,7 @@ def load_test_config() -> Config:
 
     # Create a temp directory and copy vault contents into it
     temp_dir = tempfile.mkdtemp(prefix="oba_test_vault_")
-    shutil.copytree(vault_example, temp_dir, dirs_exist_ok=True)
+    shutil.copytree(example_vault_path, temp_dir, dirs_exist_ok=True)
 
     # Clean up on program exit
     atexit.register(shutil.rmtree, temp_dir, ignore_errors=True)
@@ -87,7 +67,7 @@ def load_test_config() -> Config:
     )
 
 
-def _read_from_path(path: Path) -> Config | None:
+def _read_from_path(path: str) -> Config | None:
     try:
         with open(path, "r") as f:
             config_payload = json.load(f)
@@ -101,7 +81,7 @@ def _read_from_path(path: Path) -> Config | None:
         return None
 
     except (JSONDecodeError, ValidationError):
-        print(f"Invalid JSON found at {CONFIG_PATH}.")
+        print(f"Invalid JSON found at {CONFIG_FILE_PATH}.")
         result = input("Delete and create a new one? [y/N] ")
         if result.lower() == "y":
             return None
@@ -118,8 +98,8 @@ def _setup_interactive() -> Config:
             break
 
     while True:
-        path = Path(input("What's the path to your vault? ")).expanduser()
-        if path.is_dir():
+        path = os.path.expanduser(input("What's the path to your vault? "))
+        if os.path.isdir(path):
             break
 
         print("\nThat path does not point to a directory.")
@@ -128,14 +108,15 @@ def _setup_interactive() -> Config:
 
     return Config(
         user_name=name,
-        vault_path=path.as_posix(),
+        vault_path=path,
     )
 
 
-def _write_to_path(config: Config, path: Path) -> None:
+def _write_to_path(config: Config, path: str) -> None:
     payload: dict[str, object] = asdict(config)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
 
 
 def apply_oba_highlight(msg: str) -> str:

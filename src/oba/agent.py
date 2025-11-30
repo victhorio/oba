@@ -1,14 +1,15 @@
+import os
 from datetime import datetime
 from typing import Literal
 
 import httpx
 from ag import Agent
-from ag.memory import EphemeralMemory
+from ag.memory import SQLiteMemory
 from ag.models import AnthropicModel, OpenAIModel
 from ag.tools import create_agentic_web_search_tool
 
 from oba import prompts, vault
-from oba.configs import Config
+from oba.configs import Config, special_dir_path
 from oba.tools.fs import create_list_dir_tool, create_read_note_tool, create_ripgrep_tool
 
 
@@ -46,9 +47,11 @@ def agent_create(
         # this line should be greyed out by lsp due to exhaustive match
         raise AssertionError(f"Unknown model family: {model_family}")
 
+    memory = SQLiteMemory(db_path=os.path.join(special_dir_path(config), "memory.db"))
+
     return Agent(
         model=model,
-        memory=EphemeralMemory(),
+        memory=memory,
         system_prompt=system_prompt,
         tools=[
             create_read_note_tool(config.vault_path),
