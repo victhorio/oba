@@ -128,6 +128,10 @@ class ObaTUI(App[Usage]):
         # focus on input box on startup
         self.query_one("#input-box", ChatTextArea).focus()
 
+        # update the status bar to fill it in with text (incl. setup costs)
+        assert self.agent.memory
+        self._update_status_bar(self.agent.memory.get_usage(self.session_id))
+
     async def on_unmount(self) -> None:
         if self.agent.memory:
             # the return value of `App.run` is fetched through the `_return_value` attribute

@@ -103,7 +103,7 @@ class SQLiteMemory(Memory):
             # the method will return a truthy but zero'd out Usage object if it was not found
             # in memory, so we actually need to check the contents. thankfully, it's impossible
             # for an existing usage to have 0 input tokens
-            if usage.input_tokens > 0:
+            if usage.input_tokens > 0 or usage.tool_costs > 0:
                 return usage
 
         with self._conn:
@@ -171,6 +171,21 @@ class SQLiteMemory(Memory):
                     usage.total_cost,
                     usage.tool_costs,
                 ),
+            )
+
+    @override
+    def add_tool_cost(self, session_id: str, cost: float) -> None:
+        if self._ephemeral_copy:
+            self._ephemeral_copy.add_tool_cost(session_id, cost)
+
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT INTO usage (session_id, tool_costs) VALUES (?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    tool_costs = usage.tool_costs + excluded.tool_costs;
+                """,
+                (session_id, cost),
             )
 
     def close(self) -> None:

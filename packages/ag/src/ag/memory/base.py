@@ -19,3 +19,6 @@ class Memory(ABC):
         messages: Sequence[Message],
         usage: Usage,
     ) -> None: ...
+
+    @abstractmethod
+    def add_tool_cost(self, session_id: str, cost: float) -> None: ...

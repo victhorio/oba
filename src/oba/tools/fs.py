@@ -171,14 +171,17 @@ def create_ripgrep_tool(vault_path: str) -> Tool:
     return Tool(spec=RipGrep, callable=callable)
 
 
-async def create_semantic_search_tool(vault_path: str, model: OpenAIEmbeddings) -> Tool:
+async def create_semantic_search_tool(
+    vault_path: str,
+    model: OpenAIEmbeddings,
+) -> tuple[Tool, float]:
     conn = conn_create()
 
-    index = await index_create(vault_path, model)
+    index, setup_cost = await index_create(vault_path, model)
     embeddings_store(conn, index)
 
-    async def callable(query_text: str, k: int) -> str:
-        results = await notes_search(conn, index, query_text, k)
-        return "\n".join(results)
+    async def callable(query_text: str, k: int) -> tuple[str, float]:
+        results, cost = await notes_search(conn, index, query_text, k)
+        return "\n".join(results), cost
 
-    return Tool(spec=SemanticSearch, callable=callable)
+    return Tool(spec=SemanticSearch, callable=callable), setup_cost

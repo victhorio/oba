@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 from typing import Literal
+from uuid import uuid4
 
 import httpx
 from rich import print as rich_print
@@ -19,7 +20,10 @@ async def main_async() -> int:
 
     config = config_load(is_test)
     client = httpx.AsyncClient()
-    agent = await agent_create(config, model, client)
+
+    # we pass the session_id so the setup cost already gets associated when
+    # the memory is created
+    agent = await agent_create(config, model, client, session_id=session_id)
 
     app = ObaTUI(agent=agent, session_id=session_id)
     usage = await app.run_async()
@@ -38,7 +42,7 @@ async def main_async() -> int:
     return 0
 
 
-def _parse_args() -> tuple[Literal["gpt", "claude"], bool, str | None]:
+def _parse_args() -> tuple[Literal["gpt", "claude"], bool, str]:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="gpt")
     parser.add_argument("--test", action="store_true")
@@ -58,5 +62,7 @@ def _parse_args() -> tuple[Literal["gpt", "claude"], bool, str | None]:
     session_id = args.session
     if session_id is not None and not isinstance(session_id, str):
         raise RuntimeError("Session ID must be a string")
+
+    session_id = session_id or str(uuid4())
 
     return model, is_test, session_id

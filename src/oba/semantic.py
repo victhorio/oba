@@ -14,7 +14,7 @@ class EmbeddingsIndex:
     index: dict[int, str] = field(factory=dict)
 
 
-async def index_create(vault_path: str, model: OpenAIEmbeddings) -> EmbeddingsIndex:
+async def index_create(vault_path: str, model: OpenAIEmbeddings) -> tuple[EmbeddingsIndex, float]:
     """
     Based on the notes index, creates a map of {note name -> embedding} for the given vault.
     """
@@ -31,7 +31,7 @@ async def index_create(vault_path: str, model: OpenAIEmbeddings) -> EmbeddingsIn
         index.vectors[i] = vector
         index.index[i] = note_name
 
-    return index
+    return index, embeddings.dollar_cost
 
 
 def conn_create() -> sqlite3.Connection:
@@ -60,12 +60,12 @@ async def notes_search(
     index: EmbeddingsIndex,
     query_text: str,
     k: int = 5,
-) -> list[str]:
+) -> tuple[list[str], float]:
     embeddings = await index.model.embed(inputs=[query_text])
     query_vector = embeddings.vectors[0]
 
     indexes = _vector_query(conn, query_vector, k)
-    return [index.index[i] for i in indexes]
+    return [index.index[i] for i in indexes], embeddings.dollar_cost
 
 
 def _vector_query(

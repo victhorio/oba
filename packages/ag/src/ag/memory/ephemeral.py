@@ -35,3 +35,9 @@ class EphemeralMemory(Memory):
 
         self._messages[session_id].extend(messages)
         self._usage[session_id] = self._usage[session_id].add(usage)
+
+    @override
+    def add_tool_cost(self, session_id: str, cost: float) -> None:
+        if session_id not in self._usage:
+            self._usage[session_id] = Usage()
+        self._usage[session_id] = self._usage[session_id].add(Usage(tool_costs=cost))

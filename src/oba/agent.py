@@ -23,6 +23,7 @@ async def agent_create(
     config: Config,
     model_family: Literal["gpt", "claude"],
     client: httpx.AsyncClient,
+    session_id: str,
 ) -> Agent:
     recent_dailies = vault.get_recent_dailies(config.vault_path)
 
@@ -53,11 +54,14 @@ async def agent_create(
         # this line should be greyed out by lsp due to exhaustive match
         raise AssertionError(f"Unknown model family: {model_family}")
 
-    memory = SQLiteMemory(db_path=os.path.join(special_dir_path(config), "memory.db"))
-
-    print("Indexing all notes for semantic search...")
     embedding_model = OpenAIEmbeddings(model_id="text-embedding-3-small")
-    semantic_search_tool = await create_semantic_search_tool(config.vault_path, embedding_model)
+    semantic_search_tool, setup_cost = await create_semantic_search_tool(
+        config.vault_path,
+        embedding_model,
+    )
+
+    memory = SQLiteMemory(db_path=os.path.join(special_dir_path(config), "memory.db"))
+    memory.add_tool_cost(session_id, setup_cost)
 
     return Agent(
         model=model,
