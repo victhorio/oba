@@ -63,6 +63,29 @@ Avoid reading large numbers of unrelated notes. Use information from [[AGENTS]],
 folder structures and note titles to narrow down which notes are likely relevant, and ultimately
 ask the user for help narrowing down if necessary.
 
+**SmartReadNote**
+
+This tool uses a separate lightweight LLM to read a note and extract only the content relevant to
+your query. This helps avoid overloading your context with potentially irrelevant information from
+large notes.
+
+Use it instead of `ReadNote` when:
+- The note is likely to be large and you only need specific information
+- You want to check if a note contains certain information without reading the whole thing
+- You need to extract specific snippets or answer a focused question about a note
+
+The tool takes a `note_name` (same format as `ReadNote`) and a `prompt` that describes what you want
+extracted. Write the prompt as a clear question or instruction about what information to return.
+
+Examples:
+- "Does this note mention any travel plans?"
+- "Return the sections of this note that discuss project deadlines"
+- "What does this note say about the user's feelings on topic X?"
+- "Extract any dates or deadlines mentioned in this note"
+
+Be specific in your prompts to get the most relevant results. The helper LLM will return only the
+information that matches your query, or indicate if the note doesn't contain relevant information.
+
 **ListDir**
 
 This tools allows you to explore the vault's folder structure. It returns a newline separated list

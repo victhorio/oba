@@ -2,10 +2,15 @@ import json
 import os
 import subprocess
 from functools import partial
+from typing import Any
 
 from ag.embeddings.openai import OpenAIEmbeddings
+from ag.models import Content, OpenAIModel, Response
 from ag.tool import Tool
+from httpx import AsyncClient
 from pydantic import BaseModel, Field
+
+from oba.prompts import prompt_load
 
 from ..semantic import conn_create, embeddings_store, index_create, notes_search
 from ..vault import read_note
@@ -24,6 +29,32 @@ class ReadNote(BaseModel):
             " vault. For example, to read the /AGENTS.md file use `note_name='AGENTS'`, to read"
             " the daily note for 2025-09-11 use `note_name='2025-09-11'`, meaning no actual paths"
             " (just the note name) and without the `.md` extension."
+        ),
+    )
+
+
+class SmartReadNote(BaseModel):
+    """
+    Use this function to have a separate LLM read a note from the vault and return relevant content
+    to you based on the `prompt`. The idea here is that you won't need to overload your memory with
+    a lot of content/potentially irrelevant content. The result from the LLM will be returned as
+    text, and if the note doesn't exist it will return the following string:
+    `[system message: note '{note_name}' does not exist]`.
+    """
+
+    note_name: str = Field(
+        description=(
+            "The name of the note to read, written in the same way as notes are referenced in the"
+            " vault. For example, to read the /AGENTS.md file use `note_name='AGENTS'`, to read"
+            " the daily note for 2025-09-11 use `note_name='2025-09-11'`, meaning no actual paths"
+            " (just the note name) and without the `.md` extension."
+        ),
+    )
+    prompt: str = Field(
+        description=(
+            "The prompt passed to the LLM that will read the note indicating what it should return"
+            " to you. For example, 'does this note mention the writer being sick?' or 'return the"
+            " snippets of this note that talk about X'."
         ),
     )
 
@@ -89,6 +120,29 @@ class SemanticSearch(BaseModel):
 def create_read_note_tool(vault_path: str) -> Tool:
     callable = partial(read_note, vault_path)
     return Tool(spec=ReadNote, callable=callable)
+
+
+def create_smart_read_note_tool(*, vault_path: str, client: AsyncClient) -> Tool:
+    model = OpenAIModel(model_id="gpt-5-mini", reasoning_effort="low")
+
+    async def callable(note_name: str, prompt: str) -> tuple[str, float]:
+        try:
+            note = read_note(vault_path, note_name)
+        except FileNotFoundError:
+            return f"[system message: note '{note_name}' does not exist]", 0.0
+
+        response: Response[Any] = await model.generate(
+            messages=[
+                Content(role="system", text=prompt_load("smart_read_note", note=note)),
+                Content(role="user", text=prompt),
+            ],
+            client=client,
+        )
+        assert response.content is not None
+
+        return response.content.text, response.dollar_cost
+
+    return Tool(spec=SmartReadNote, callable=callable)
 
 
 def create_list_dir_tool(vault_path: str) -> Tool:

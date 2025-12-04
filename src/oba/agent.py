@@ -16,6 +16,7 @@ from oba.tools.fs import (
     create_read_note_tool,
     create_ripgrep_tool,
     create_semantic_search_tool,
+    create_smart_read_note_tool,
 )
 
 
@@ -32,7 +33,7 @@ async def agent_create(
     except FileNotFoundError:
         agents_md = "[system: no AGENTS.md file found in repository]"
 
-    system_prompt = prompts.load(
+    system_prompt = prompts.prompt_load(
         prompt_name="system_prompt",
         name=config.user_name,
         now=datetime.now().strftime("%Y-%m-%d %H:%M (%A)"),
@@ -69,6 +70,7 @@ async def agent_create(
         system_prompt=system_prompt,
         tools=[
             create_read_note_tool(config.vault_path),
+            create_smart_read_note_tool(vault_path=config.vault_path, client=client),
             create_list_dir_tool(config.vault_path),
             create_ripgrep_tool(config.vault_path),
             semantic_search_tool,

@@ -6,7 +6,7 @@ from pathlib import Path
 _BASE_DIR = Path(__file__).parent
 
 
-def load(prompt_name: str, **kwargs: str) -> str:
+def prompt_load(prompt_name: str, **kwargs: str) -> str:
     path = _prompt_path(prompt_name)
     try:
         contents = path.read_text(encoding="utf-8").strip()
